@@ -1,0 +1,15 @@
+{
+        "name": "DerpLib",
+        "version": "0.0.1",
+        "dependencies": {
+                "colors": "*",
+                "q": "*",
+                "request": "*",
+                "underscore": "*",
+                "xml2js": "*"
+        },
+        "engines": {
+                "node": "*",
+                "npm": "1.2.x"
+        }
+}
