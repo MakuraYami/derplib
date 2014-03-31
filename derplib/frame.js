@@ -59,16 +59,16 @@ var frameTypesRoom = {
 		return {type: "badlogin"};
 	},
 	
-	tb: function() {
-		return {type: "tb"};
+	tb: function(seconds) {
+		return {type: "tb", time: seconds};
 	},
 	
-	fw: function() {
-		return {type: "fw"};
+	show_fw: function() {
+		return {type: "show_fw"};
 	},
 	
-	show_tb: function() {
-		return {type: "show_tb"};
+	show_tb: function(seconds) {
+		return {type: "show_tb", time: seconds};
 	},
 	
 	"delete": function(msgid) {
@@ -113,6 +113,30 @@ var frameTypesRoom = {
 	
 	n: function(num) {
 		return {type: "n", count: parseInt(num, 16)};
+	},
+
+	g_participants: function(){
+		var args = _.toArray(arguments),
+			participants = [];
+		for(var i=0; i<args.length; i+= 5){
+			if(args[i+1] != NaN && args[i+2] != undefined && args[i+3] != undefined){
+				participants.push({
+					time: parseFloat(args[i+1]),
+					user_id: args[i+2],
+					name: args[i+3]
+				});
+			}
+		}
+		return {type: "g_participants", participants: participants};
+	},
+
+	participant: function(number, _noidea, user_id, name, _noidea, _noidea, time){
+		return {
+			number: number,
+			type: "participant",
+			user_id: user_id,
+			name: name,
+			time: parseFloat(time)};
 	},
 	
 	blocked: function(unid, ip, name, bansrc, time) {
