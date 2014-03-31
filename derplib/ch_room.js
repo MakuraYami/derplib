@@ -32,7 +32,7 @@ function Room(options) {
 	this.ispm = false;
 	this.admin = false;
 	this.mods = [];
-	this.users = {};
+	this.users = [];
 	this.usercount = 0;
 	// Private vars
 	this._account = options.account || false;
@@ -260,55 +260,48 @@ Room.prototype._onAuth = function(){
 		self.usercount = _frame.count;
 	});
 	
-	this.on('frame_g_participants', function(args) {
-		var list = args.join(':').split(';');
-		self._users = [];
-		for(var k in list){
-			var obj = list[k].split(':');
-			if(obj.length != 6) continue;
-			if(obj[3] != 'None' && self._users.indexOf(obj[3].toLowerCase()) < 0)
-				self._users.push(obj[3].toLowerCase());
+	this.on('frame_g_participants', function(_frame) {
+		for(var k in _frame.participants){
+			if(_frame.participants[k].name != 'None' && self.users.indexOf(_frame.participants[k].name.toLowerCase()) == -1)
+				self.users.push(_frame.participants[k].name.toLowerCase());
 		}
 		if(!self._g_participants)
 			self.write(['g_participants', 'stop']);
 	});
 	
-	this.on('frame_participant', function(args) {
-		var name = args[3].toLowerCase();;
-		var user_id = args[2];
-		
-		if(args[0] == '0'){ //leave
-			var index = self._users.indexOf(name);
-			if(index != -1) self._users.splice(index, 1);
+	this.on('frame_participant', function(_frame) {	
+		if(_frame.number == '0' && _frame.name.toLowerCase() != 'none'){ //leave
+			var index = self.users.indexOf(_frame.name.toLowerCase());
+			if(index != -1) self.users.splice(index, 1);
 			
-			self._bot.emit('userleave', name);
+			self.emit('userleave', _frame.name.toLowerCase());
 		}
-		else if(args[0] == '1'){ //join
-			if(name != 'none' && self._users.indexOf(name) == -1){
-				self._users.push(name);
+		else if(_frame.number == '1'){ //join
+			if(_frame.name.toLowerCase() != 'none' && self.users.indexOf(_frame.name.toLowerCase()) == -1){
+				self.users.push(_frame.name.toLowerCase());
 				
-				self._bot.emit('userjoin', name);
+				self.emit('userjoin', _frame.name.toLowerCase());
 			}
 		}
-		else if(args[0] == '2'){ //log in or out
-			if(name == 'none'){
-				var index = self._users.indexOf(name);
-				if(index > -1) self._users.splice(index, 1);
+		else if(_frame.number == '2'){ //log in or out
+			if(_frame.name.toLowerCase() == 'none'){
+				var index = self.users.indexOf(_frame.name.toLowerCase());
+				if(index != -1) self.users.splice(index, 1);
 				
-				self._bot.emit('userlogout', name);
+				self.emit('userlogout', _frame.name.toLowerCase());
 			}else{
-				if(self._users.indexOf(name) == -1) 
-					self._users.push(name);
+				if(self.users.indexOf(_frame.name.toLowerCase()) == -1) 
+					self.users.push(_frame.name.toLowerCase());
 				
-				self._bot.emit('userlogin', name);
+				self.emit('userlogin', _frame.name.toLowerCase());
 			}
 			
 		}
 	});
 	
-	this.on('frame_premium', function(args) {
-		var premium_time = parseFloat(args[1]);
-		if(premium_time > +new Date/1000){
+	this.on('frame_premium', function(_frame) {
+		var premium_time = parseFloat(_frame.expire);
+		if(premium_time > Math.floor(Date.now()/ 1000)){
 			if(self._settings.useBackground)
 				self.write(['msgbg', '1']);
 			if(self._settings.useRecording)
@@ -316,7 +309,7 @@ Room.prototype._onAuth = function(){
 		}
 	});
 	
-	this.on('frame_show_fw', function(args) {
+	this.on('frame_show_fw', function(_frame) {
 		console.log(('['+self.name+'] Flood warning. Going in lockdown').bold.red);
 		self._writeLock = true;
 		self.emit('start_fw');
@@ -334,13 +327,15 @@ Room.prototype._onAuth = function(){
 		self.emit('end_fw');
 	});
 	
-	this.on('frame_show_tb', function() {
+	this.on('frame_show_tb', function(_frame) {
 		// 15 minutes, result of flooding
+		console.log(('['+self.name+'] Tempbanned for '+_frame.time+' seconds').bold.red);
 		self.emit('start_tempban');
 	});
 	
-	this.on('frame_tb', function(args){
-		self.emit('tempban', args);
+	this.on('frame_tb', function(_frame){
+		console.log(('['+self.name+'] still Tempbanned you have '+_frame.time+' more seconds').bold.red);
+		self.emit('tempban', _frame.time);
 	});
 	
 	this.on('frame_clearall', function(){
@@ -413,10 +408,6 @@ Room.prototype._onAuth = function(){
 		self.emit('unban', unban);
 	});
 	
-	this.on('frame_bansearchresult', function(args) {
-		
-	});
-	
 	this.on('frame_getbannedwords', function(args) {
 		self._bannedWordsPartly = _.filter(decodeURIComponent(args[1]).split(','), function(x){ return x; });
 		self._bannedWordsExact = _.filter(decodeURIComponent(args[2]).split(','), function(x){ return x; });
@@ -476,14 +467,14 @@ Room.prototype.message = function(body) {
 			output += this._fontf() + body[i] + '</f></p>' + (i == body.length-1 ? '' : '<p>');
 		}
 		
-		_.each(output.match(/(.|[\r\n]){1,2950}/gm), function(msg){
+		_.each(output.toString().match(/(.|[\r\n]){1,2950}/gm), function(msg){
 			
 			self.write(['bmsg', 'derp', '<n'+self._settings.nameColor+'/>'+msg]);
 			
 		});
 	}
 	else{
-		_.each(body.match(/(.|[\r\n]){1,2950}/gm), function(msg){
+		_.each(body.toString().match(/(.|[\r\n]){1,2950}/gm), function(msg){
 			
 			self.write(['bmsg', 'derp', '<n'+self._settings.nameColor+'/>' + self._fontf() + msg]);
 			
@@ -630,5 +621,4 @@ Room.prototype.removeExactBannedWord = function(word) {
 		}
 	}
 }
-
 exports.Room = Room;
