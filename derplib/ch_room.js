@@ -591,7 +591,7 @@ Room.prototype.requestBanlist = function() {
 Room.prototype.searchBan = function(query) {
 	if(this._isModerator){
 		this.write(['searchban', query]);
-		return self._bansearch
+		return this._bansearch
 	}
 }
 
