@@ -48,7 +48,7 @@ function Room(options) {
 	this._isModerator = false;
 	this._consoleFilter = ['i', 'b', 'u', 'n', 'g_participants', 'participant', 'premium'];
 	this._messages = [];
-	this._bans = [];
+	this._bans = {};
 	this._bansearch = [];
 	this._bannedWordsPartly = []
 	this._bannedWordsExact = {};
@@ -168,11 +168,11 @@ Room.prototype._onAuth = function(){
 		self.admin = _frame.owner;
 		self.mods = _frame.mods;
 		
-		if(self.admin == self._account) {
+		if(self.admin == self._account.toLowerCase()) {
 			self._isAdmin = true;
 		}
 		
-		if(self.mods.indexOf(self._account) != -1 || self._isAdmin) {
+		if(self.mods.indexOf(self._account.toLowerCase()) != -1 || self._isAdmin) {
 			self._isModerator = true;
 		}
 	});
@@ -180,12 +180,12 @@ Room.prototype._onAuth = function(){
 	this.on('frame_pwdok', function(_frame) {
 		self._loggedIn = true;
 		self.write(['getpremium', '1']);
-		if(self.admin == self._account) {
+		if(self.admin == self._account.toLowerCase()) {
 			self._isAdmin = true;
 		}else{
 			self._isAdmin = false;
 		}
-		if(self.mods.indexOf(self._account) != -1 || self._isAdmin) {
+		if((self.mods.indexOf(self._account.toLowerCase()) != -1) || self._isAdmin) {
 			self._isModerator = true;
 		}else{
 			self._isModerator = false;
@@ -391,14 +391,16 @@ Room.prototype._onAuth = function(){
 	
 	this.on('frame_blocklist', function(_frame) {
 		for(var b in _frame.banlist){
-			var ban = {
-				id: _frame.banlist[b].unid,
-				ip: _frame.banlist[b].ip,
-				username: _frame.banlist[b].name.toLowerCase(),
-				time: _frame.banlist[b].time,
-				by: _frame.banlist[b].bansrc.toLowerCase()
-			};
-			self._bans.push(ban.username);
+			if(b != undefined){
+				var ban = {
+					id: _frame.banlist[b].unid,
+					ip: _frame.banlist[b].ip,
+					username: _frame.banlist[b].name.toLowerCase(),
+					time: _frame.banlist[b].time,
+					by: _frame.banlist[b].bansrc.toLowerCase()
+				};
+				self._bans[ban.username] = ban;
+			}
 		}
 	});
 	
@@ -410,11 +412,11 @@ Room.prototype._onAuth = function(){
 			by: _frame.bansrc,
 			time: _frame.time
 		};
-		self._bans.push(ban.username);
+		self._bans[ban.username] = ban;
 		self.emit('ban', ban);
 	});
 	
-	this.on('frame_unblocked', function(frame) {
+	this.on('frame_unblocked', function(_frame) {
 		var unban = {
 			id: _frame.unid,
 			ip: _frame.ip,
@@ -422,9 +424,7 @@ Room.prototype._onAuth = function(){
 			banner: _frame.unbansrc,
 			time: _frame.time
 		};
-		var index = self._bans.indexOf(unban.username);
-		if(index != -1) 
-			self._bans.splice(index, 1)
+		delete self._bans[unban.username];
 		self.emit('unban', unban);
 	});
 	
