@@ -152,14 +152,26 @@ var frameTypesRoom = {
 	blocklist: function() {
 		var args = _.toArray(arguments),
 			banlist = [];
-		for(var i=0; i<args.length; i+= 5){
-			banlist.push({
-				unid: args[i],
-				ip: args[i+1],
-				name: args[i+2],
-				time: args[i+3],
-				bansrc: args[i+4]
-			});
+		for(var i=0; i<args.length; i+= 4){
+			if(args[i+1] != undefined && args[i+2] != undefined && args[i+3] != undefined && args[i+4] != undefined){ 
+				if(args[i].match(/;/)){
+					var unid = args[i].split(';')[1];
+				}else{
+					var unid = args[i];
+				}
+				if(args[i+4].match(/;/)){
+					var bansrc = args[i+4].split(';')[0];
+				}else{
+					var bansrc = args[i+4];
+				}
+				banlist.push({
+					unid: unid,
+					ip: args[i+1],
+					name: args[i+2],
+					time: args[i+3],
+					bansrc: bansrc
+				});
+			}
 		}
 		return {type: "blocklist", banlist: banlist};
 	},
