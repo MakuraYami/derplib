@@ -51,7 +51,7 @@ function Room(options) {
 	this._bans = {};
 	this._bansearch = [];
 	this._bannedWordsPartly = []
-	this._bannedWordsExact = {};
+	this._bannedWordsExact = [];
 	this._autoReconnect = options.reconnect || true;
 	this._settings = {
 		useBackground: true,
