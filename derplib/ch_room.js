@@ -398,7 +398,7 @@ Room.prototype._onAuth = function(){
 				time: _frame.banlist[b].time,
 				by: _frame.banlist[b].bansrc.toLowerCase()
 			};
-			self._bans[ban.username] = ban;
+			self._bans = {ban.username: ban};
 		}
 	});
 	
@@ -410,7 +410,7 @@ Room.prototype._onAuth = function(){
 			by: _frame.bansrc,
 			time: _frame.time
 		};
-		self._bans[ban.username] = ban;
+		self._bans = {ban.username: ban};
 		self.emit('ban', ban);
 	});
 	
