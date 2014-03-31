@@ -48,7 +48,7 @@ function Room(options) {
 	this._isModerator = false;
 	this._consoleFilter = ['i', 'b', 'u', 'n', 'g_participants', 'participant', 'premium'];
 	this._messages = [];
-	this._bans = {};
+	this._bans = [];
 	this._bansearch = [];
 	this._bannedWordsPartly = []
 	this._bannedWordsExact = {};
@@ -206,8 +206,8 @@ Room.prototype._onAuth = function(){
 		
 		self.write(['getpremium', '1']);
 		self.write(['g_participants','start']);
-		//this.getBannedWords();
-		//this.requestBanlist();
+		self.getBannedWords();
+		self.requestBanlist();
 		self.emit('joined');
 	});
 	
@@ -398,7 +398,7 @@ Room.prototype._onAuth = function(){
 				time: _frame.banlist[b].time,
 				by: _frame.banlist[b].bansrc.toLowerCase()
 			};
-			self._bans = {ban.username: ban};
+			self._bans.push(ban.username);
 		}
 	});
 	
@@ -410,7 +410,7 @@ Room.prototype._onAuth = function(){
 			by: _frame.bansrc,
 			time: _frame.time
 		};
-		self._bans = {ban.username: ban};
+		self._bans.push(ban.username);
 		self.emit('ban', ban);
 	});
 	
@@ -422,7 +422,9 @@ Room.prototype._onAuth = function(){
 			banner: _frame.unbansrc,
 			time: _frame.time
 		};
-		delete self._bans[unban.username];
+		var index = self._bans.indexOf(unban.username);
+		if(index != -1) 
+			self._bans.splice(index, 1)
 		self.emit('unban', unban);
 	});
 	
@@ -575,7 +577,7 @@ Room.prototype.ban = function(user) {
 Room.prototype.unban = function(user) {
 	if(this._isModerator) {
 		if(this._bans[user.name]){
-			this.write(['removeblock', this.bans[user.name].id, this.bans[user.name].ip]); 
+			this.write(['removeblock', this._bans[user.name].id, this._bans[user.name].ip]); 
 		}
 	}
 }
