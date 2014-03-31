@@ -71,7 +71,7 @@ var frameTypesRoom = {
 		return {type: "show_tb", time: seconds};
 	},
 	
-	"delete": function(msgid) {
+	delete: function(msgid) {
 		return {type: "delete", msgid: msgid};
 	},
 	
@@ -137,6 +137,31 @@ var frameTypesRoom = {
 			user_id: user_id,
 			name: name,
 			time: parseFloat(time)};
+	},
+
+	bansearchresult: function(name, ip, unid, bansrc, time){
+		return {
+			type: "bansearchresult",
+			name: name,
+			ip: ip,
+			unid: unid,
+			bansrc: bansrc,
+			time: Date.parse(time)};
+	},
+
+	blocklist: function() {
+		var args = _.toArray(arguments),
+			banlist = [];
+		for(var i=0; i<args.length; i+= 5){
+			banlist.push({
+				unid: args[i],
+				ip: args[i+1],
+				name: args[i+2],
+				time: args[i+3],
+				bansrc: args[i+4]
+			});
+		}
+		return {type: "blocklist", banlist: banlist};
 	},
 	
 	blocked: function(unid, ip, name, bansrc, time) {
