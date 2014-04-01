@@ -139,7 +139,7 @@ var frameTypesRoom = {
 			time: parseFloat(time)};
 	},
 
-	bansearchresult: function(name, ip, unid, bansrc, time){
+	bansearchresult: function(_noidea, name, ip, unid, bansrc, time){
 		return {
 			type: "bansearchresult",
 			name: name,
