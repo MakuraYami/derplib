@@ -49,7 +49,7 @@ function Room(options) {
 	this._consoleFilter = ['i', 'b', 'u', 'n', 'g_participants', 'participant', 'premium'];
 	this._messages = [];
 	this._bans = {};
-	this._bansearch = [];
+	this._bansearch = {};
 	this._bannedWordsPartly = []
 	this._bannedWordsExact = [];
 	this._autoReconnect = options.reconnect || true;
@@ -360,7 +360,7 @@ Room.prototype._onAuth = function(){
 			bansrc: _frame.bansrc,
 			time: _frame.time
 		};
-		self._bansearch = bansearch;
+		self._bansearch[bansearch.name] = bansearch;
 	});
 
 	this.on('frame_delete', function(_frame){
