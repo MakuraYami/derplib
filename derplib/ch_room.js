@@ -224,7 +224,7 @@ Room.prototype._onAuth = function(){
 		if(self._messages.length > 100)
 			self._messages.shift();
 		if(self.users[_frame.user.name.toLowerCase()] != undefined){
-			if(self.users[_frame.user.name.toLowerCase()].user_key == undefined && self.users[_frame.user.name.toLowerCase()].ip == undefined && self.users[_frame.user.name.toLowerCase()].alias == undefined){
+			if(self.users[_frame.user.name.toLowerCase()].key == undefined && self.users[_frame.user.name.toLowerCase()].ip == undefined && self.users[_frame.user.name.toLowerCase()].alias == undefined){
 				self.users[_frame.user.name.toLowerCase()] = _frame.user;
 			}
 		}else{
@@ -248,7 +248,7 @@ Room.prototype._onAuth = function(){
 		if(self._messages.length > 100)
 			self._messages.shift();
 		if(self.users[_frame.user.name.toLowerCase()] != undefined){
-			if(self.users[_frame.user.name.toLowerCase()].user_key == undefined && self.users[_frame.user.name.toLowerCase()].ip == undefined && self.users[_frame.user.name.toLowerCase()].alias == undefined){
+			if(self.users[_frame.user.name.toLowerCase()].key == undefined && self.users[_frame.user.name.toLowerCase()].ip == undefined && self.users[_frame.user.name.toLowerCase()].alias == undefined){
 				self.users[_frame.user.name.toLowerCase()] = _frame.user;
 			}
 		}else{
