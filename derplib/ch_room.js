@@ -574,8 +574,10 @@ Room.prototype.clearall = function() {
 
 Room.prototype.ban = function(user) {
 	if(this._isModerator) {
-		if(this.users[user].key && this.users[user].ip && this.users[user].name)
-			this.write(['block', this.users[user].key, this.users[user].ip, this.users[user].name]);
+		if this.users[user] != undefined){
+			if(this.users[user].key && this.users[user].ip && this.users[user].name)
+				this.write(['block', this.users[user].key, this.users[user].ip, this.users[user].name]);
+		}
 	}
 }
 
