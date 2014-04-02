@@ -140,14 +140,19 @@ var frameTypesRoom = {
 	},
 
 	bansearchresult: function(_noidea, name, ip, unid, bansrc, timep1, timep2, timep3){
-		var time = new Date(Date.parse(String(String(timep1.split(' ').join('T'))+':'+String(timep2)+':'+String(timep3)+'.000')));
-		return {
-			type: "bansearchresult",
-			name: name,
-			ip: ip,
-			unid: unid,
-			bansrc: bansrc,
-			time: String(time)};
+		if(name == undefined || ip == undefined || unid == undefined || bansrc == undefined || timep1 == undefined || timep2 == undefined || timep3 == undefined){
+			return
+		}else{
+			var time = new Date(Date.parse(String(String(timep1.split(' ').join('T'))+':'+String(timep2)+':'+String(timep3)+'.000')));
+			return {
+				type: "bansearchresult",
+				name: name,
+				ip: ip,
+				unid: unid,
+				bansrc: bansrc,
+				time: String(time)
+			};
+		}
 	},
 
 	blocklist: function() {
