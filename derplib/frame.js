@@ -139,14 +139,15 @@ var frameTypesRoom = {
 			time: parseFloat(time)};
 	},
 
-	bansearchresult: function(_noidea, name, ip, unid, bansrc, time){
+	bansearchresult: function(_noidea, name, ip, unid, bansrc, timep1, timep2, timep3){
+		var time = new Date(Date.parse(String(String(timep1.split(' ').join('T'))+':'+String(timep2)+':'+String(timep3)+'.000')));
 		return {
 			type: "bansearchresult",
 			name: name,
 			ip: ip,
 			unid: unid,
 			bansrc: bansrc,
-			time: Date.parse(time)};
+			time: String(time)};
 	},
 
 	blocklist: function() {
