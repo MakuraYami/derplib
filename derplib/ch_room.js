@@ -49,7 +49,6 @@ function Room(options) {
 	this._consoleFilter = ['i', 'b', 'u', 'n', 'g_participants', 'participant', 'premium'];
 	this._messages = [];
 	this._bans = {};
-	this._bansearch = {};
 	this._bannedWordsPartly = []
 	this._bannedWordsExact = [];
 	this._autoReconnect = options.reconnect || true;
@@ -353,14 +352,8 @@ Room.prototype._onAuth = function(){
 	});
 	
 	this.on('frame_bansearchresult', function(_frame) {
-		var bansearch = {
-			name: _frame.name,
-			ip: _frame.ip,
-			unid: _frame.unid,
-			bansrc: _frame.bansrc,
-			time: _frame.time
-		};
-		self._bansearch[bansearch.name] = bansearch;
+		var bansearch = _frame.name+'\r'+_frame.ip+'\r'+_frame.unid+'\r'+_frame.bansrc+'\r'+_frame.time;
+		self.write(['bmsg', 'derp', '<n'+self._settings.nameColor+'/>' + self._fontf() + bansearch]);
 	});
 
 	this.on('frame_delete', function(_frame){
@@ -569,15 +562,15 @@ Room.prototype.clearall = function() {
 
 Room.prototype.ban = function(user) {
 	if(this._isModerator) {
-		if(user.key && user.ip && user.name)
-			this.write(['block', user.key, user.ip, user.name]);
+		if(user.id && user.ip && user.name)
+			this.write(['block', user.id, user.ip, user.name]);
 	}
 }
 
 Room.prototype.unban = function(user) {
 	if(this._isModerator) {
-		if(this._bans[user.name]){
-			this.write(['removeblock', this._bans[user.name].id, this._bans[user.name].ip]); 
+		if(this._bans[user].name){
+			this.write(['removeblock', this._bans[user].id, this._bans[user].ip, this._bans[user].name]); 
 		}
 	}
 }
@@ -591,7 +584,6 @@ Room.prototype.requestBanlist = function() {
 Room.prototype.searchBan = function(query) {
 	if(this._isModerator){
 		this.write(['searchban', query]);
-		return this._bansearch
 	}
 }
 
