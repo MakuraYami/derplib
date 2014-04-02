@@ -120,10 +120,11 @@ var frameTypesRoom = {
 			participants = [];
 		for(var i=0; i<args.length; i+= 5){
 			if(args[i+1] != NaN && args[i+2] != undefined && args[i+3] != undefined){
+				var name = args[i+3],
+					user_id = args[i+2];
 				participants.push({
 					time: parseFloat(args[i+1]),
-					user_id: args[i+2],
-					name: args[i+3]
+					user: makeUser(name, '', user_id, '', '')
 				});
 			}
 		}
@@ -134,8 +135,7 @@ var frameTypesRoom = {
 		return {
 			number: number,
 			type: "participant",
-			user_id: user_id,
-			name: name,
+			user: makeUser(name, '', user_id, '', ''),
 			time: parseFloat(time)};
 	},
 
