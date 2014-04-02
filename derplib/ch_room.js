@@ -32,7 +32,7 @@ function Room(options) {
 	this.ispm = false;
 	this.admin = false;
 	this.mods = [];
-	this.users = [];
+	this.users = {};
 	this.usercount = 0;
 	// Private vars
 	this._account = options.account || false;
@@ -223,7 +223,13 @@ Room.prototype._onAuth = function(){
 		self._messages.push(req.message);
 		if(self._messages.length > 100)
 			self._messages.shift();
-		
+		if(self.users[_frame.user.name.toLowerCase()] != undefined){
+			if(self.users[_frame.user.name.toLowerCase()].user_key == undefined && self.users[_frame.user.name.toLowerCase()].ip == undefined && self.users[_frame.user.name.toLowerCase()].alias == undefined){
+				self.users[_frame.user.name.toLowerCase()] = _frame.user;
+			}
+		}else{
+			self.users[_frame.user.name.toLowerCase()] = _frame.user;
+		}
 	});
 	
 	this.on('frame_b', function(_frame) {
@@ -241,6 +247,13 @@ Room.prototype._onAuth = function(){
 		self._messages.push(req.message);
 		if(self._messages.length > 100)
 			self._messages.shift();
+		if(self.users[_frame.user.name.toLowerCase()] != undefined){
+			if(self.users[_frame.user.name.toLowerCase()].user_key == undefined && self.users[_frame.user.name.toLowerCase()].ip == undefined && self.users[_frame.user.name.toLowerCase()].alias == undefined){
+				self.users[_frame.user.name.toLowerCase()] = _frame.user;
+			}
+		}else{
+			self.users[_frame.user.name.toLowerCase()] = _frame.user;
+		}
 	});
 	
 	this.on('frame_u', function(_frame) {
@@ -262,38 +275,37 @@ Room.prototype._onAuth = function(){
 	
 	this.on('frame_g_participants', function(_frame) {
 		for(var k in _frame.participants){
-			if(_frame.participants[k].name != 'None' && self.users.indexOf(_frame.participants[k].name.toLowerCase()) == -1)
-				self.users.push(_frame.participants[k].name.toLowerCase());
+			if(_frame.participants[k].user.name != 'None' && Object.keys(self.users).indexOf(_frame.participants[k].user.name.toLowerCase()) == -1){
+				self.users[_frame.participants[k].user.name.toLowerCase()] = _frame.participants[k].user;
+			}
 		}
 		if(!self._g_participants)
 			self.write(['g_participants', 'stop']);
 	});
 	
 	this.on('frame_participant', function(_frame) {	
-		if(_frame.number == '0' && _frame.name.toLowerCase() != 'none'){ //leave
-			var index = self.users.indexOf(_frame.name.toLowerCase());
-			if(index != -1) self.users.splice(index, 1);
+		if(_frame.number == '0' && _frame.user.name.toLowerCase() != 'none'){ //leave
+			delete self.users[_frame.user.name.toLowerCase()];
 			
-			self.emit('userleave', _frame.name.toLowerCase());
+			self.emit('userleave', _frame.user.name.toLowerCase());
 		}
 		else if(_frame.number == '1'){ //join
-			if(_frame.name.toLowerCase() != 'none' && self.users.indexOf(_frame.name.toLowerCase()) == -1){
-				self.users.push(_frame.name.toLowerCase());
+			if(_frame.user.name.toLowerCase() != 'none' && Object.keys(self.users).indexOf(_frame.user.name.toLowerCase()) == -1){
+				self.users[_frame.user.name.toLowerCase()] = _frame.user;
 				
-				self.emit('userjoin', _frame.name.toLowerCase());
+				self.emit('userjoin', _frame.user.name.toLowerCase());
 			}
 		}
 		else if(_frame.number == '2'){ //log in or out
-			if(_frame.name.toLowerCase() == 'none'){
-				var index = self.users.indexOf(_frame.name.toLowerCase());
-				if(index != -1) self.users.splice(index, 1);
+			if(_frame.user.name.toLowerCase() == 'none'){
+				delete self.users[_frame.user.name.toLowerCase()];
 				
-				self.emit('userlogout', _frame.name.toLowerCase());
+				self.emit('userlogout', _frame.user.name.toLowerCase());
 			}else{
-				if(self.users.indexOf(_frame.name.toLowerCase()) == -1) 
-					self.users.push(_frame.name.toLowerCase());
+				if(Object.keys(self.users).indexOf(_frame.user.name.toLowerCase()) == -1) 
+					self.users[_frame.user.name.toLowerCase()] = _frame.user;
 				
-				self.emit('userlogin', _frame.name.toLowerCase());
+				self.emit('userlogin', _frame.user.name.toLowerCase());
 			}
 			
 		}
@@ -392,7 +404,7 @@ Room.prototype._onAuth = function(){
 					time: _frame.banlist[b].time,
 					by: _frame.banlist[b].bansrc.toLowerCase()
 				};
-				self._bans[ban.username] = ban;
+				self._bans[ban.username.toLowerCase()] = ban;
 			}
 		}
 	});
@@ -405,7 +417,7 @@ Room.prototype._onAuth = function(){
 			by: _frame.bansrc,
 			time: _frame.time
 		};
-		self._bans[ban.username] = ban;
+		self._bans[ban.username.toLowerCase()] = ban;
 		self.emit('ban', ban);
 	});
 	
@@ -562,15 +574,15 @@ Room.prototype.clearall = function() {
 
 Room.prototype.ban = function(user) {
 	if(this._isModerator) {
-		if(user.id && user.ip && user.name)
-			this.write(['block', user.id, user.ip, user.name]);
+		if(this.users[user].key && this.users[user].ip && this.users[user].name)
+			this.write(['block', this.users[user].key, this.users[user].ip, this.users[user].name]);
 	}
 }
 
 Room.prototype.unban = function(user) {
 	if(this._isModerator) {
-		if(this._bans[user].name){
-			this.write(['removeblock', this._bans[user].id, this._bans[user].ip, this._bans[user].name]); 
+		if(this._bans[user].username){
+			this.write(['removeblock', this._bans[user].id, this._bans[user].ip, this._bans[user].username]); 
 		}
 	}
 }
