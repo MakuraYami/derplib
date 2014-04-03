@@ -71,7 +71,7 @@ var frameTypesRoom = {
 		return {type: "show_tb", time: seconds};
 	},
 	
-	delete: function(msgid) {
+	"delete": function(msgid) {
 		return {type: "delete", msgid: msgid};
 	},
 	
