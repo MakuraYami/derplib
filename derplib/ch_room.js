@@ -382,10 +382,10 @@ Room.prototype._onAuth = function(){
 		self.emit('profileupdate', args[0]);
 	});
 	
-	this.on('frame_mods', function(args) {
-		self.mods = args;
-		var added = _.find(args, function(x){ return self.mods.indexOf(x) >= 0; });
-		var removed = _.find(self.mods, function(x){ return args.indexOf(x) < 0; });
+	this.on('frame_mods', function(_frame) {
+		self.mods = _frame.mods;
+		var added = _.find(_frame.mods, function(x){ return self.mods.indexOf(x) >= 0; });
+		var removed = _.find(self.mods, function(x){ return _frame.mods.indexOf(x) < 0; });
 		
 		if(added){
 			self.emit('mod_added', added);
