@@ -356,8 +356,8 @@ Room.prototype._onAuth = function(){
 	
 	this.on('frame_clearall', function(){
 		if(args[0] == 'ok'){
-			for(var i=0; i<self.messages.length; i++){
-				self.messages[i].deleted = true;
+			for(var i=0; i<self._messages.length; i++){
+				self._messages[i].deleted = true;
 			}
 			self.emit('clearall', args);
 		}
@@ -369,10 +369,8 @@ Room.prototype._onAuth = function(){
 	});
 
 	this.on('frame_delete', function(_frame){
-		var msg = _.find(self.messages, function(x){ 
-			if(x.id == _frame.msgid){
-				return x; 
-			}
+		var msg = _.find(self._messages, function(x){ 
+			return (x.id == _frame.msgid);
 		});
 		msg.deleted = true
 		self.emit('message_delete', msg);
