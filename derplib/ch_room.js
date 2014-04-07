@@ -51,6 +51,7 @@ function Room(options) {
 	this._bans = {};
 	this._bannedWordsPartly = []
 	this._bannedWordsExact = [];
+	this._rooms = [];
 	this._autoReconnect = options.reconnect || true;
 	this._settings = {
 		useBackground: true,
@@ -89,6 +90,7 @@ Room.prototype._onAuth = function(){
 			self.write(['bauth', self.name, self._uid, self._account, self._password]);
 		else
 			self.write(['bauth', self.name, self._uid, '', '']);
+		self._rooms.push(self.name);
 		
 		self._sock.setWriteLock(true);
 		
@@ -615,6 +617,15 @@ Room.prototype.searchBan = function(query) {
 	if(this._isModerator){
 		this.write(['searchban', query]);
 	}
+}
+
+Room.prototype.leave = function() {
+	this._autoReconnect = false;
+	var index = this._rooms.indexOf(this.name);
+	if(index >= 0){
+		this._rooms.splice(index, 1);
+	}
+	this.disconnect();
 }
 
 Room.prototype.getBannedWords = function() {
