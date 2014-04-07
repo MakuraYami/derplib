@@ -29,7 +29,6 @@ Request.prototype.parseMessage = function(frame) {
 		number: 	frame.number,
 		ip: 		frame.ip, //mod only
 		user_number: 	frame.user.id,
-		msgid:		frame.msgid, //mod only
 		body: 		frame.body,
 		id: false, 	//is filled in later
 		
