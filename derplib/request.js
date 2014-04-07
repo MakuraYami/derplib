@@ -30,7 +30,7 @@ Request.prototype.parseMessage = function(frame) {
 		ip: 		frame.ip, //mod only
 		user_number: 	frame.user.id,
 		body: 		frame.body,
-		id: false, 	//is filled in later
+		id: 	undefined, 	//is filled in later
 		
 		time: (+new Date),
 		deleted: false,
