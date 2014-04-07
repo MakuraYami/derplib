@@ -370,9 +370,7 @@ Room.prototype._onAuth = function(){
 
 	this.on('frame_delete', function(_frame){
 		var msg = _.find(self._messages, function(x){
-			if(x.msgid == _frame.msgid){
-				return (x.id = x.msgid);
-			}
+			return (x.id = x.msgid);
 		});
 		msg.deleted = true
 		self.emit('message_delete', msg);
