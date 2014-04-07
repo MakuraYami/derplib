@@ -370,7 +370,7 @@ Room.prototype._onAuth = function(){
 
 	this.on('frame_delete', function(_frame){
 		var msg = _.find(self._messages, function(x){
-			return (x.id = x.msgid);
+			return (x.id = _frame.msgid);
 		});
 		msg.deleted = true
 		self.emit('message_delete', msg);
@@ -534,7 +534,7 @@ Room.prototype.removeMod = function(name) {
 Room.prototype.flag = function(message) {
 	for(var i=this._messages.length-1; i>=0; i--){
 		if(this._messages[i].text == message){
-			this.write(['g_flag', this._messages[i].msgid]);
+			this.write(['g_flag', this._messages[i].id]);
 			break;
 		}
 	}
@@ -553,7 +553,7 @@ Room.prototype.delmsg = function(message) {
 	if(this._isModerator){
 		for(var i=this._messages.length-1; i>=0; i--){
 			if(this._messages[i].text == message){
-				this.write(['delmsg', this._messages[i].msgid]);
+				this.write(['delmsg', this._messages[i].id]);
 				break;
 			}
 		}
