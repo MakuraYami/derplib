@@ -369,8 +369,10 @@ Room.prototype._onAuth = function(){
 	});
 
 	this.on('frame_delete', function(_frame){
-		var msg = _.find(self._messages, function(x){ 
-			return (x.id == _frame.msgid);
+		var msg = _.find(self._messages, function(x){
+			if(x.msgid == _frame.msgid){
+				return (x.id = x.msgid);
+			}
 		});
 		msg.deleted = true
 		self.emit('message_delete', msg);
@@ -532,35 +534,58 @@ Room.prototype.removeMod = function(name) {
 }
 
 Room.prototype.flag = function(message) {
-	if(message.id){
-		this.write(['g_flag', message.id]);
+	for(var m in this._messages){
+		if(this._messages[m].text == message){
+			var fm = this._messages[m].msgid;
+			this.write(['g_flag', fm]);
+			break;
+		}
+	}
+}
+
+Room.prototype.flagUser = function(username){
+	for(var m in this._messages){
+		if(this._messages[m].name.toLowerCase() == username.toLowerCase()){
+			var fm = this._messages[m].msgid;
+			this.write(['g_flag', fm]);
+			break;
+		}
 	}
 }
 
 Room.prototype.delmsg = function(message) {
 	if(this._isModerator){
-		if(message.id){
-			this.write(['delmsg', message.id]);
-		}else{
-			var self = this;
-			var count = 0;
-			var inter = setInterval(function(){
-				if(count > 200){
-					clearInterval(inter);
-				}
-				if(message.id){
-					this.write(['delmsg', message.id]);
-					clearInterval(inter);
-				}
-				count++;
-			}, 50);
+		for(var m in this._messages){
+			if(this._messages[m].text == message){
+				var dm = this._messages[m].msgid;
+				this.write(['delmsg', dm]);
+				break;
+			}
 		}
 	}
 }
 
-Room.prototype.clearUser = function(message) {
+Room.prototype.delUser = function(username) {
 	if(this._isModerator){
-		this.write(['delallmsg', message.uid]);
+		for(var m in this._messages){
+			if(this._messages[m].name.toLowerCase() == username.toLowerCase()){
+				var dm = this._messages[m].msgid;
+				this.write(['delmsg', dm]);
+				break;
+			}
+		}
+	}
+}
+
+Room.prototype.clearUser = function(username) {
+	if(this._isModerator){
+		for(var m in this._messages){
+			if(this._messages[m].name.toLowerCase() == username.toLowerCase()){
+				var dm = this._messages[m].user_key;
+				this.write(['delallmsg', dm]);
+				break;
+			}
+		}
 	}
 }
 
