@@ -120,10 +120,11 @@ var frameTypesRoom = {
 			participants = [];
 		for(var i=0; i<args.length; i+= 5){
 			if(args[i+1] != NaN && args[i+2] != undefined && args[i+3] != undefined){
+				var name = args[i+3],
+					user_id = args[i+2];
 				participants.push({
 					time: parseFloat(args[i+1]),
-					user_id: args[i+2],
-					name: args[i+3]
+					user: makeUser(name, '', user_id, '', '')
 				});
 			}
 		}
@@ -134,9 +135,51 @@ var frameTypesRoom = {
 		return {
 			number: number,
 			type: "participant",
-			user_id: user_id,
-			name: name,
+			user: makeUser(name, '', user_id, '', ''),
 			time: parseFloat(time)};
+	},
+
+	bansearchresult: function(_noidea, name, ip, unid, bansrc, timep1, timep2, timep3){
+		if(name == undefined || ip == undefined || unid == undefined || bansrc == undefined || timep1 == undefined || timep2 == undefined || timep3 == undefined){
+			return
+		}else{
+			var time = new Date(Date.parse(String(String(timep1.split(' ').join('T'))+':'+String(timep2)+':'+String(timep3)+'.000')));
+			return {
+				type: "bansearchresult",
+				name: name,
+				ip: ip,
+				unid: unid,
+				bansrc: bansrc,
+				time: String(time)
+			};
+		}
+	},
+
+	blocklist: function() {
+		var args = _.toArray(arguments),
+			banlist = [];
+		for(var i=0; i<args.length; i+= 4){
+			if(args[i+1] != undefined && args[i+2] != undefined && args[i+3] != undefined && args[i+4] != undefined){ 
+				if(args[i].match(/;/)){
+					var unid = args[i].split(';')[1];
+				}else{
+					var unid = args[i];
+				}
+				if(args[i+4].match(/;/)){
+					var bansrc = args[i+4].split(';')[0];
+				}else{
+					var bansrc = args[i+4];
+				}
+				banlist.push({
+					unid: unid,
+					ip: args[i+1],
+					name: args[i+2],
+					time: args[i+3],
+					bansrc: bansrc
+				});
+			}
+		}
+		return {type: "blocklist", banlist: banlist};
 	},
 	
 	blocked: function(unid, ip, name, bansrc, time) {
