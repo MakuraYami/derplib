@@ -24,11 +24,12 @@ Request.prototype.parseMessage = function(frame) {
 		stime:		frame.time, // Server time
 		name: 		frame.user.name,
 		alias: 		frame.user.alias,
-		user_id: 	frame.user.user_id,
-		user_key: 	frame.user.user_key, //mod only
+		user_id: 	frame.user.id,
+		user_key: 	frame.user.key, //mod only
 		number: 	frame.number,
 		ip: 		frame.ip, //mod only
-		user_number: frame.user.id,
+		user_number: 	frame.user.id,
+		msgid:		frame.msgid, //mod only
 		body: 		frame.body,
 		id: false, 	//is filled in later
 		
