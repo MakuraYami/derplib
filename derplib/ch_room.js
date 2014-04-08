@@ -329,6 +329,9 @@ Room.prototype._onAuth = function(){
 		console.log(('['+self.name+'] Flood warning. Going in lockdown').bold.red);
 		self._writeLock = true;
 		self.emit('start_fw');
+		setTimeout(function(){
+			self._writeLock = false;
+		}, 10000);
 		/*
 		setTimeout(function(){
 			//raw write to bypass lock
