@@ -22,23 +22,24 @@ Request.prototype.parseMessage = function(frame) {
 	var message = {
 		room:		this.room.name,
 		stime:		frame.time, // Server time
-		name: 		frame.user.name,
 		alias: 		frame.user.alias,
-		user_id: 	frame.user.id,
-		user_key: 	frame.user.key, //mod only
+		user_id: 	frame.user.user_id,
+		user_key: 	frame.user.user_key, //mod only
 		number: 	frame.number,
 		ip: 		frame.ip, //mod only
-		user_number: 	frame.user.id,
+		user_number: frame.user.id,
 		body: 		frame.body,
-		id: 	undefined, 	//is filled in later
+		id: false, 	//is filled in later
 		
 		time: (+new Date),
 		deleted: false,
 	};
 	
-	if(message.name && message.alias === undefined) message.type = 'user';
-	else if(message.name === undefined && message.alias) message.type = 'temp';
-	else message.type = 'anon';
+	if(frame.user.name) frame.user.name = frame.user.name.toLowerCase();
+	
+	if(frame.user.name && frame.user.alias === undefined) frame.user.type = 'user';
+	else if(frame.user.name === undefined && frame.user.alias) frame.user.type = 'temp';
+	else frame.user.type = 'anon';
 	
 	//CONTINUE
 	message.text = utils.html_decode(utils.html_remove(message.body));
@@ -50,12 +51,12 @@ Request.prototype.parseMessage = function(frame) {
 		message.fontColor = fontMatches[2];
 		message.fontFace = fontMatches[3];
 	}
-	if(message.type == 'anon') {
-		message.name = '_anon' + utils.getAnonId(message.nameColor, message.user_id);
+	if(frame.user.type == 'anon') {
+		frame.user.name = '_anon' + utils.getAnonId(message.nameColor, message.user_id);
 	}
-	else if(message.type == 'user'){
-		if(this.room.mods.indexOf(message.name) != -1) message.access = 1;
-		if(this.room.admin == message.name) message.access = 2;
+	else if(frame.user.type == 'user'){
+		if(this.room.mods.indexOf(frame.user.name) != -1) frame.user.access = 1;
+		if(this.room.admin == frame.user.name) frame.user.access = 2;
 	}
 	
 	//Extra
@@ -110,7 +111,10 @@ Request.prototype.parsePMMessage = function(frame) {
 }
 
 Request.prototype.write = function(body){
-	this.room.message(body, this.user.name);
+	if(this.room.ispm)
+		this.room.message(this.user.name, body);
+	else
+		this.room.message(body);
 }
 
 // Database format

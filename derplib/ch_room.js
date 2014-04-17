@@ -36,6 +36,7 @@ function Room(options) {
 	this.usercount = 0;
 	// Private vars
 	this._account = options.account || false;
+	this._accountLC = this._account ? this._account.toLowerCase() : false;
 	this._password = options.password || false;
 	this._maxConTime = 0;
 	this._loggedIn = false;
@@ -52,6 +53,7 @@ function Room(options) {
 	this._bannedWordsPartly = []
 	this._bannedWordsExact = [];
 	this._autoReconnect = options.reconnect || true;
+	this._reconnectDelay = 5;
 	this._settings = {
 		useBackground: true,
 		useRecording: false,
@@ -64,7 +66,7 @@ function Room(options) {
 	var self = this;
 	
 	eventModule.emit("event", "newroom", this.name, function(settings){
-		if(Object.prototype.toString.call(settings) === "[object Object]")
+		if(_.isObject(settings))
 			self._settings = _.extend(self._settings, settings);
 			
 		self._sock = new socket.Instance( self._host );
@@ -110,8 +112,10 @@ Room.prototype._onAuth = function(){
 	
 	this._sock.on('close', function() {
 		if(self._autoReconnect){
-			console.log(('['+self.name+'] Socket closed, reconnecting').bold.red);
-			self._sock.connect();
+			console.log(('['+self.name+'] Socket closed, reconnecting...').bold.red);
+			setTimeout(function(){
+				self._sock.connect();
+			}, self._reconnectDelay * 1000);
 		}else{
 			console.log(('['+self.name+'] Socket closed, reconnect is off').bold.red);
 		}
@@ -167,11 +171,11 @@ Room.prototype._onAuth = function(){
 		self.admin = _frame.owner;
 		self.mods = _frame.mods;
 		
-		if(self.admin == self._account.toLowerCase()) {
+		if(self.admin == self._accountLC) {
 			self._isAdmin = true;
 		}
 		
-		if(self.mods.indexOf(self._account.toLowerCase()) != -1 || self._isAdmin) {
+		if(self.mods.indexOf(self._accountLC) != -1 || self._isAdmin) {
 			self._isModerator = true;
 		}
 	});
@@ -179,12 +183,12 @@ Room.prototype._onAuth = function(){
 	this.on('frame_pwdok', function(_frame) {
 		self._loggedIn = true;
 		self.write(['getpremium', '1']);
-		if(self.admin == self._account.toLowerCase()) {
+		if(self.admin == self._accountLC) {
 			self._isAdmin = true;
 		}else{
 			self._isAdmin = false;
 		}
-		if((self.mods.indexOf(self._account.toLowerCase()) != -1) || self._isAdmin) {
+		if(self.mods.indexOf(self._accountLC) != -1 || self._isAdmin) {
 			self._isModerator = true;
 		}else{
 			self._isModerator = false;
@@ -199,14 +203,13 @@ Room.prototype._onAuth = function(){
 	});
 	
 	this.on('frame_inited', function(args) {
-		if(!self._loggedIn) return;
 		
 		self._sock.setWriteLock(false);
 		
 		self.write(['getpremium', '1']);
 		self.write(['g_participants','start']);
-		self.getBannedWords();
-		self.requestBanlist();
+		//this.getBannedWords();
+		//this.requestBanlist();
 		self.emit('joined');
 	});
 	
@@ -223,13 +226,7 @@ Room.prototype._onAuth = function(){
 		self._messages.push(req.message);
 		if(self._messages.length > 100)
 			self._messages.shift();
-		if(self.users[_frame.user.name.toLowerCase()] != undefined){
-			if(self.users[_frame.user.name.toLowerCase()].key == undefined && self.users[_frame.user.name.toLowerCase()].ip == undefined && self.users[_frame.user.name.toLowerCase()].alias == undefined){
-				self.users[_frame.user.name.toLowerCase()] = _frame.user;
-			}
-		}else{
-			self.users[_frame.user.name.toLowerCase()] = _frame.user;
-		}
+		
 	});
 	
 	this.on('frame_b', function(_frame) {
@@ -247,13 +244,6 @@ Room.prototype._onAuth = function(){
 		self._messages.push(req.message);
 		if(self._messages.length > 100)
 			self._messages.shift();
-		if(self.users[_frame.user.name.toLowerCase()] != undefined){
-			if(self.users[_frame.user.name.toLowerCase()].key == undefined && self.users[_frame.user.name.toLowerCase()].ip == undefined && self.users[_frame.user.name.toLowerCase()].alias == undefined){
-				self.users[_frame.user.name.toLowerCase()] = _frame.user;
-			}
-		}else{
-			self.users[_frame.user.name.toLowerCase()] = _frame.user;
-		}
 	});
 	
 	this.on('frame_u', function(_frame) {
@@ -274,58 +264,41 @@ Room.prototype._onAuth = function(){
 	});
 	
 	this.on('frame_g_participants', function(_frame) {
-		for(var k in _frame.participants){
-			if(_frame.participants[k].user.name != 'None' && Object.keys(self.users).indexOf(_frame.participants[k].user.name.toLowerCase()) == -1){
-				self.users[_frame.participants[k].user.name.toLowerCase()] = _frame.participants[k].user;
-			}
-		}
+		self.users = _frame.users;
 		if(!self._g_participants)
 			self.write(['g_participants', 'stop']);
 	});
 	
-	this.on('frame_participant', function(_frame) {	
-		if(_frame.number == '0' && _frame.user.name.toLowerCase() != 'none'){ //leave
-			delete self.users[_frame.user.name.toLowerCase()];
-			
-			self.emit('userleave', _frame.user.name.toLowerCase());
+	this.on('frame_participant', function(_frame) {
+		if(_frame.mode == 'leave'){
+			if(_.has(self.users, _frame.sess))
+				delete self.users[_frame.sess];
 		}
-		else if(_frame.number == '1'){ //join
-			if(_frame.user.name.toLowerCase() != 'none' && Object.keys(self.users).indexOf(_frame.user.name.toLowerCase()) == -1){
-				self.users[_frame.user.name.toLowerCase()] = _frame.user;
-				
-				self.emit('userjoin', _frame.user.name.toLowerCase());
-			}
+		else if(_frame.mode == 'join'){
+			if(!_.has(self.users, _frame.sess))
+				 self.users[_frame.sess] = _frame;
 		}
-		else if(_frame.number == '2'){ //log in or out
-			if(_frame.user.name.toLowerCase() == 'none'){
-				delete self.users[_frame.user.name.toLowerCase()];
-				
-				self.emit('userlogout', _frame.user.name.toLowerCase());
+		else if(_frame.mode == 'change'){
+			//log in or out
+			self.users[_frame.sess] = _frame;
+			if(undefined === _frame.user.name){
+				eventModule.emit('event', 'userLogout', _frame);
 			}else{
-				if(Object.keys(self.users).indexOf(_frame.user.name.toLowerCase()) == -1) 
-					self.users[_frame.user.name.toLowerCase()] = _frame.user;
-				
-				self.emit('userlogin', _frame.user.name.toLowerCase());
+				eventModule.emit('event', 'userLogin', _frame);
 			}
-			
 		}
 	});
 	
 	this.on('frame_premium', function(_frame) {
-		var premium_time = parseFloat(_frame.expire);
-		if(premium_time > Math.floor(Date.now()/ 1000)){
-			if(self._settings.useBackground && self._settings.useRecording){
+		if(_frame.expire > +new Date/1000){
+			if(self._settings.useBackground)
 				self.write(['msgbg', '1']);
+			if(self._settings.useRecording)
 				self.write(['msgmedia', '1']);
-			}else if(self._settings.useRecording && !self._settings.useBackground){
-				self.write(['msgmedia', '1']);
-			}else if(self._settings.useBackground && !self._settings.useRecording){
-				self.write(['msgbg', '1']);
-			}
 		}
 	});
 	
-	this.on('frame_show_fw', function(_frame) {
+	this.on('frame_show_fw', function(args) {
 		console.log(('['+self.name+'] Flood warning. Going in lockdown').bold.red);
 		self._writeLock = true;
 		self.emit('start_fw');
@@ -343,35 +316,26 @@ Room.prototype._onAuth = function(){
 		self.emit('end_fw');
 	});
 	
-	this.on('frame_show_tb', function(_frame) {
+	this.on('frame_show_tb', function() {
 		// 15 minutes, result of flooding
-		console.log(('['+self.name+'] Tempbanned for '+_frame.time+' seconds').bold.red);
 		self.emit('start_tempban');
 	});
 	
-	this.on('frame_tb', function(_frame){
-		console.log(('['+self.name+'] still Tempbanned you have '+_frame.time+' more seconds').bold.red);
-		self.emit('tempban', _frame.time);
+	this.on('frame_tb', function(args){
+		self.emit('tempban', args);
 	});
 	
 	this.on('frame_clearall', function(){
 		if(args[0] == 'ok'){
-			for(var i=0; i<self._messages.length; i++){
-				self._messages[i].deleted = true;
+			for(var i=0; i<self.messages.length; i++){
+				self.messages[i].deleted = true;
 			}
 			self.emit('clearall', args);
 		}
 	});
 	
-	this.on('frame_bansearchresult', function(_frame) {
-		var bansearch = _frame.name+'\r'+_frame.ip+'\r'+_frame.unid+'\r'+_frame.bansrc+'\r'+_frame.time;
-		self.write(['bmsg', 'derp', '<n'+self._settings.nameColor+'/>' + self._fontf() + bansearch]);
-	});
-
-	this.on('frame_delete', function(_frame){
-		var msg = _.find(self._messages, function(x){
-			return (x.id = _frame.msgid);
-		});
+	this.on('frame_delete', function(args){
+		var msg = _.find(self.messages, function(x){ return (x.id == args[0]); });
 		msg.deleted = true
 		self.emit('message_delete', msg);
 	});
@@ -380,10 +344,10 @@ Room.prototype._onAuth = function(){
 		self.emit('profileupdate', args[0]);
 	});
 	
-	this.on('frame_mods', function(_frame) {
-		self.mods = _frame.mods;
-		var added = _.find(_frame.mods, function(x){ return self.mods.indexOf(x) >= 0; });
-		var removed = _.find(self.mods, function(x){ return _frame.mods.indexOf(x) < 0; });
+	this.on('frame_mods', function(args) {
+		self.mods = args;
+		var added = _.find(args, function(x){ return self.mods.indexOf(x) >= 0; });
+		var removed = _.find(self.mods, function(x){ return args.indexOf(x) < 0; });
 		
 		if(added){
 			self.emit('mod_added', added);
@@ -392,43 +356,47 @@ Room.prototype._onAuth = function(){
 		}
 	});
 	
-	this.on('frame_blocklist', function(_frame) {
-		for(var b in _frame.banlist){
-			if(b != undefined){
-				var ban = {
-					id: _frame.banlist[b].unid,
-					ip: _frame.banlist[b].ip,
-					username: _frame.banlist[b].name.toLowerCase(),
-					time: _frame.banlist[b].time,
-					by: _frame.banlist[b].bansrc.toLowerCase()
-				};
-				self._bans[ban.username.toLowerCase()] = ban;
-			}
-		}
+	this.on('frame_blocklist', function(args) {
+		var bans = args.join(':').split(';');
+		_.each(bans, function(ban){
+			var banargs = ban.split(':');
+			var ban = {
+				id: banargs[0],
+				ip: banargs[1],
+				username: banargs[2],
+				time: banargs[3],
+				by: banargs[4]
+			};
+			self._bans[ban.username] = ban;
+		});
 	});
 	
-	this.on('frame_blocked', function(_frame) {
+	this.on('frame_blocked', function(args) {
 		var ban = {
-			id: _frame.unid,
-			ip: _frame.ip,
-			username: _frame.name,
-			by: _frame.bansrc,
-			time: _frame.time
+			id: args[0],
+			ip: args[1],
+			username: args[2],
+			by: args[3],
+			time: args[4]
 		};
-		self._bans[ban.username.toLowerCase()] = ban;
+		self._bans[ban.username] = ban;
 		self.emit('ban', ban);
 	});
 	
-	this.on('frame_unblocked', function(_frame) {
+	this.on('frame_unblocked', function(args) {
 		var unban = {
-			id: _frame.unid,
-			ip: _frame.ip,
-			username: _frame.name,
-			banner: _frame.unbansrc,
-			time: _frame.time
+			id: args[0],
+			ip: args[1],
+			username: args[2],
+			banner: args[3],
+			time: args[4]
 		};
 		delete self._bans[unban.username];
 		self.emit('unban', unban);
+	});
+	
+	this.on('frame_bansearchresult', function(args) {
+		
 	});
 	
 	this.on('frame_getbannedwords', function(args) {
@@ -448,7 +416,7 @@ Room.prototype._onAuth = function(){
 	
 }
 
-Room.prototype._fontf = function(size, color, face) {
+Room.prototype.font = function(size, color, face) {
 	size = size || this._settings.textSize;
 	color = color || this._settings.textColor;
 	face = face || this._settings.textFont;
@@ -483,27 +451,42 @@ Room.prototype.message = function(body) {
 	
 	var self = this;
 	
-	if(Object.prototype.toString.call(body) == '[object Array]'){
+	body = String(body).replace(/[\n\r]/, '');
+	
+	if(_.isArray(body)){
 		//Multi-line message
-		var output = '';
-		for(var i=0; i<body.length; i++){
-			output += this._fontf() + body[i] + '</f></p>' + (i == body.length-1 ? '' : '<p>');
-		}
+		var output = _.reduce(body, function(output, msg, i){
+			return output += self.font() + msg + '</f></p>' + (i == body.length-1 ? '' : '<p>');
+		}, '');
 		
-		_.each(output.toString().match(/(.|[\r\n]){1,2950}/gm), function(msg){
-			
-			self.write(['bmsg', 'derp', '<n'+self._settings.nameColor+'/>'+msg]);
-			
+		_.each(output.match(/(.|[\r\n]){1,2950}/gm), function(msg){
+			self.write(['bmsg', 'l33t', '<n'+self._settings.nameColor+'/>'+msg]);
 		});
 	}
 	else{
-		_.each(body.toString().match(/(.|[\r\n]){1,2950}/gm), function(msg){
-			
-			self.write(['bmsg', 'derp', '<n'+self._settings.nameColor+'/>' + self._fontf() + msg]);
-			
+		_.each(body.match(/(.|[\r\n]){1,2950}/gm), function(msg){
+			self.write(['bmsg', 'l33t', '<n'+self._settings.nameColor+'/>' + self.font() + msg]);
 		});
 	}
 };
+
+Room.prototype.userTime = function(user, cb){
+	var pm = _.find(MM.parent._data.pms, function(pm){
+		return pm._sock && pm._sock._connected;
+	});
+	if(pm){
+		console.log("Found PM, connecting to user");
+		pm.connectChat(user);
+		eventModule.once('PmChatOpen', function(frame){
+			pm.disconnectChat(user);
+			cb(frame);
+		});
+	}else{
+		cb(false);
+	}
+}
+
+// Chatango functions
 
 Room.prototype.login = function(){
 	if(!this._loggedIn)
@@ -532,53 +515,35 @@ Room.prototype.removeMod = function(name) {
 }
 
 Room.prototype.flag = function(message) {
-	for(var i=this._messages.length-1; i>=0; i--){
-		if(this._messages[i].text == message){
-			this.write(['g_flag', this._messages[i].id]);
-			break;
-		}
-	}
-}
-
-Room.prototype.flagUser = function(username){
-	for(var i=this._messages.length-1; i>=0; i--){
-		if(this._messages[i].name.toLowerCase() == username.toLowerCase()){
-			this.flag(this._messages[i].text);
-			break;
-		}
+	if(message.id){
+		this.write(['g_flag', message.id]);
 	}
 }
 
 Room.prototype.delmsg = function(message) {
 	if(this._isModerator){
-		for(var i=this._messages.length-1; i>=0; i--){
-			if(this._messages[i].text == message){
-				this.write(['delmsg', this._messages[i].id]);
-				break;
-			}
+		if(message.id){
+			this.write(['delmsg', message.id]);
+		}else{
+			var self = this;
+			var count = 0;
+			var inter = setInterval(function(){
+				if(count > 200){
+					clearInterval(inter);
+				}
+				if(message.id){
+					this.write(['delmsg', message.id]);
+					clearInterval(inter);
+				}
+				count++;
+			}, 50);
 		}
 	}
 }
 
-Room.prototype.delUser = function(username) {
+Room.prototype.clearUser = function(message) {
 	if(this._isModerator){
-		for(var i=this._messages.length-1; i>=0; i--){
-			if(this._messages[i].name.toLowerCase() == username.toLowerCase()){
-				this.delmsg(this._messages[i].text);
-				break;
-			}
-		}
-	}
-}
-
-Room.prototype.clearUser = function(username) {
-	if(this._isModerator){
-		for(var i=this._messages.length-1; i>=0; i--){
-			if(this._messages[i].name.toLowerCase() == username.toLowerCase()){
-				this.write(['delallmsg', this._messages[i].user_key]);
-				break;
-			}
-		}
+		this.write(['delallmsg', message.uid]);
 	}
 }
 
@@ -590,24 +555,22 @@ Room.prototype.clearall = function() {
 
 Room.prototype.ban = function(user) {
 	if(this._isModerator) {
-		if(this.users[user] != undefined){
-			if(this.users[user].key && this.users[user].ip && this.users[user].name)
-				this.write(['block', this.users[user].key, this.users[user].ip, this.users[user].name]);
-		}
+		if(user.key && user.ip && user.name)
+			this.write(['block', user.key, user.ip, user.name]);
 	}
 }
 
 Room.prototype.unban = function(user) {
 	if(this._isModerator) {
-		if(this._bans[user].username){
-			this.write(['removeblock', this._bans[user].id, this._bans[user].ip, this._bans[user].username]); 
+		if(this._bans[user.name]){
+			this.write(['removeblock', this.bans[user.name].id, this.bans[user.name].ip]); 
 		}
 	}
 }
 
 Room.prototype.requestBanlist = function() {
 	if(this._isModerator){
-		this.write(['blocklist', 'block', '',  'next', '500', 'anons', '1']);
+		this.write(['blocklist', 'block', '',  'next', '500']); //, 'anons', '1'
 	}
 }
 
@@ -615,11 +578,6 @@ Room.prototype.searchBan = function(query) {
 	if(this._isModerator){
 		this.write(['searchban', query]);
 	}
-}
-
-Room.prototype.leave = function() {
-	this._autoReconnect = false;
-	this.disconnect();
 }
 
 Room.prototype.getBannedWords = function() {
@@ -669,4 +627,5 @@ Room.prototype.removeExactBannedWord = function(word) {
 		}
 	}
 }
+
 exports.Room = Room;

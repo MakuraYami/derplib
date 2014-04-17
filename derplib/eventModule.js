@@ -7,7 +7,7 @@ var util	= require('util'),
 
 // Module Manager
 var MM = module.parent;
-	
+
 function EventModule(){
 	events.EventEmitter.call(this);
 	
@@ -18,7 +18,7 @@ function EventModule(){
 		var event = args.shift();
 		MM.event(event, args, function(result){
 			result.unshift(event);
-			if(typeof result[result.length-1] === "function")
+			if("function" === typeof result[result.length-1])
 				result[result.length-1].apply(self, result.slice(1,result.length-1));
 			self.emit.apply(self, result);
 		});

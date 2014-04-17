@@ -1,16 +1,18 @@
 "use strict";
 var zlib 	= require('zlib'),
 	fs 		= require('fs'),
-	Q 		= require('q');
+	Q 		= require('q'),
+	_ 			= require('underscore');
 
 function File(_path){
 	this.path = _path;
 	this.data;
 	this._actions = [];
+	this.errorContinue = false
 }
 
-File.prototype.load = function(){
-	this._actions.push(["_load"]);
+File.prototype.load = function(_path){
+	this._actions.push(["_load", _path]);
 	return this;
 }
 
@@ -21,32 +23,43 @@ File.prototype._load = function(_path){
 	var self = this;
 	var deferred = Q.defer();
 	
-	var chunks = [], buffLen = 0, reader = fs.createReadStream(this.path);
-	reader.on("error", function(err){
-		deferred.reject(err);
-	});
-	reader.on("data", function(chunk){
-		chunks.push(chunk);
-		buffLen += chunk.length;
-	});
-	reader.on("end", function(){
-		var result = new Buffer(buffLen),
-			lastFreeIndex = 0,
-			buffer;
-		while (buffer = chunks.shift()) {
-			buffer.copy(result, lastFreeIndex);
-			lastFreeIndex += buffer.length;
+	fs.exists(this.path, function(exists){
+	
+		if(!exists){
+			self.data = false;
+			self.errorContinue = true;
+			deferred.reject("No data found to load");
+			return;
 		}
-		self.data = result;
-		deferred.resolve(true);
+		
+		var chunks = [], buffLen = 0, reader = fs.createReadStream(self.path);
+		reader.on("error", function(err){
+			deferred.reject(err);
+		});
+		reader.on("data", function(chunk){
+			chunks.push(chunk);
+			buffLen += chunk.length;
+		});
+		reader.on("end", function(){
+			var result = new Buffer(buffLen),
+				lastFreeIndex = 0,
+				buffer;
+			while (buffer = chunks.shift()) {
+				buffer.copy(result, lastFreeIndex);
+				lastFreeIndex += buffer.length;
+			}
+			self.data = result;
+			deferred.resolve(true);
+		});
+		
 	});
 	
 	return deferred.promise;
 }
 
-File.prototype.save = function(_path){
-	this._actions.push(["_save", _path]);
-	this._run();
+File.prototype.save = function(_arg){
+	this._actions.push(["_save", _.isString(_arg) ? _arg : false]);
+	this._run(_.isFunction(_arg) ? _arg : false);
 }
 
 File.prototype._save = function(_path){
@@ -113,8 +126,10 @@ File.prototype._unzip = function(){
 	var deferred = Q.defer();
 	var self = this; 
 	
-	if(!this.data)
-		deferred.reject("No data found to unzip");
+	if(!this.data){
+		self.errorContinue = true;
+		deferred.reject("No data found to unzip", true);
+	}
 	else
 	{
 		zlib.gunzip(this.data, function (err, result) {
@@ -163,8 +178,13 @@ File.prototype._run = function(cb){
 		p.done(function(){
 			if(self._actions.length > 0) next();
 			else if(cb) cb();
-		},function(err){
+		},function(err, cont){
 			console.log("ERROR", err);
+			if(self.errorContinue){
+				self.errorContinue = false;
+				if(self._actions.length > 0) next();
+				else if(cb) cb();
+			}
 		});
 	}
 	next();

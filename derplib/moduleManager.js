@@ -11,7 +11,8 @@ var util 	= require("util"),
 	
 function ModuleManager() {
 	
-	var self = this;
+	this.parent;
+	
 	this._data = {
 		libary: {
 			dir: __dirname+'/',
@@ -23,12 +24,11 @@ function ModuleManager() {
 			loaded: {},
 			prot: [],
 		},
-		speech: {
-			dir: './speech/',
-			loaded: {},
-			prot: [],
-		},
 	};
+	
+	var self = this;
+	
+	this.loadQueue = [];
 	
 	this.libary = {
 		load: function(x){ return self._load(x, 'libary') },
@@ -42,15 +42,6 @@ function ModuleManager() {
 		reload: function(x){ return self._reload(x, 'plugin') },
 		all: function(){ return self._data.plugin.loaded; },
 	};
-	this.speech = {
-		load: function(x){ return self._load(x, 'speech') },
-		unload: function(x){ return self._unload(x, 'speech') },
-		reload: function(x){ return self._reload(x, 'speech') },
-		all: function(){ return self._data.speech.loaded; },
-	};
-	
-	this.plugin.load('default_plugin');
-	this._data.plugin.loaded.default_plugin._order = -1;
 	
 	// Handle events for plugins
 	this.event = function(event, args, cb){
@@ -106,18 +97,25 @@ ModuleManager.prototype._load = function(mod, type) {
 	if(this._data[type].loaded.hasOwnProperty(mod)){
 		return this._data[type].loaded[mod].exports;
 	}
-	
-	var self = this;
-	this._data[type].loaded[mod] = new module.Module(path);
-	this._data[type].loaded[mod].parent = this;
-	this._data[type].loaded[mod].load(path);
-	this._data[type].loaded[mod]._id = mod;
-	this._data[type].loaded[mod]._order = 0;
-	this._data[type].loaded[mod].exports.setOrder = function(x){
-		self._data[type].loaded[mod]._order = Math.max(0, x);
-		return self._data[type].loaded[mod].exports;
+	// Load module object
+	var _mod = this._data[type].loaded[mod] = new module.Module(path);
+	// Set module data
+	_mod.parent = this;
+	_mod.exports.DerpLib = this.DerpLib;
+	_mod.exports.setOrder = function(x){
+		_mod._order = Math.max(0, x);
+		return _mod.exports;
 	};
-	return this._data[type].loaded[mod].exports;
+	_mod._id = mod;
+	_mod._order = 0;
+	// Run the module
+	_mod.load(path);
+	
+	_mod.exports.done = function(cb){
+		_mod.exports.done = cb;
+	}
+	
+	return _mod.exports;
 };
 
 	////////////
@@ -141,8 +139,11 @@ ModuleManager.prototype._reload = function(mod, type) {
 	return this.load(mod, type);
 };
 
+ModuleManager.prototype.setParent = function(_parent) {
+	this.parent = _parent;
+}
+
 	////////////
 	// Export //
 	
-var moduleManager = new ModuleManager();
-exports.instance = moduleManager;
+exports.instance = new ModuleManager();

@@ -47,8 +47,11 @@ var frameTypesRoom = {
 		return {type: "inited"};
 	},
 	
-	premium: function(_noidea, expire) {
-		return {type: "premium", expire: expire};
+	premium: function(premium, expire) {
+		return {
+			type: "premium",
+			premium: makePremium(premium),
+			expire: parseInt(expire)};
 	},
 	
 	pwdok: function() {
@@ -59,16 +62,20 @@ var frameTypesRoom = {
 		return {type: "badlogin"};
 	},
 	
-	tb: function(seconds) {
-		return {type: "tb", time: seconds};
+	tb: function() {
+		return {type: "tb"};
 	},
 	
 	show_fw: function() {
 		return {type: "show_fw"};
 	},
 	
-	show_tb: function(seconds) {
-		return {type: "show_tb", time: seconds};
+	fw: function() {
+		return {type: "fw"};
+	},
+	
+	show_tb: function() {
+		return {type: "show_tb"};
 	},
 	
 	"delete": function(msgid) {
@@ -114,73 +121,6 @@ var frameTypesRoom = {
 	n: function(num) {
 		return {type: "n", count: parseInt(num, 16)};
 	},
-
-	g_participants: function(){
-		var args = _.toArray(arguments),
-			participants = [];
-		for(var i=0; i<args.length; i+= 5){
-			if(args[i+1] != NaN && args[i+2] != undefined && args[i+3] != undefined){
-				var name = args[i+3],
-					user_id = args[i+2];
-				participants.push({
-					time: parseFloat(args[i+1]),
-					user: makeUser(name, '', user_id, '', '')
-				});
-			}
-		}
-		return {type: "g_participants", participants: participants};
-	},
-
-	participant: function(number, _noidea, user_id, name, _noidea, _noidea, time){
-		return {
-			number: number,
-			type: "participant",
-			user: makeUser(name, '', user_id, '', ''),
-			time: parseFloat(time)};
-	},
-
-	bansearchresult: function(_noidea, name, ip, unid, bansrc, timep1, timep2, timep3){
-		if(name == undefined || ip == undefined || unid == undefined || bansrc == undefined || timep1 == undefined || timep2 == undefined || timep3 == undefined){
-			return
-		}else{
-			var time = new Date(Date.parse(String(String(timep1.split(' ').join('T'))+':'+String(timep2)+':'+String(timep3)+'.000')));
-			return {
-				type: "bansearchresult",
-				name: name,
-				ip: ip,
-				unid: unid,
-				bansrc: bansrc,
-				time: String(time)
-			};
-		}
-	},
-
-	blocklist: function() {
-		var args = _.toArray(arguments),
-			banlist = [];
-		for(var i=0; i<args.length; i+= 4){
-			if(args[i+1] != undefined && args[i+2] != undefined && args[i+3] != undefined && args[i+4] != undefined){ 
-				if(args[i].match(/;/)){
-					var unid = args[i].split(';')[1];
-				}else{
-					var unid = args[i];
-				}
-				if(args[i+4].match(/;/)){
-					var bansrc = args[i+4].split(';')[0];
-				}else{
-					var bansrc = args[i+4];
-				}
-				banlist.push({
-					unid: unid,
-					ip: args[i+1],
-					name: args[i+2],
-					time: args[i+3],
-					bansrc: bansrc
-				});
-			}
-		}
-		return {type: "blocklist", banlist: banlist};
-	},
 	
 	blocked: function(unid, ip, name, bansrc, time) {
 		return {
@@ -200,6 +140,73 @@ var frameTypesRoom = {
 			name: name,
 			unbansrc: unbansrc,
 			time: time};
+	},
+	
+	// Test this
+	blocklist: function() {
+		var bans = _.reduce(_.toArray(arguments).join(':').split(';'), function(bans, args){
+			args = args.split(':');
+			var ban = makeUser(args[2], "", "", args[0], args[1]);
+			ban.time = parseFloat(args[3]);
+			ban.by = args[4];
+			bans[ban.name] = ban;
+			return bans;
+		},{});
+		return {
+			type: "blocklist",
+			bans: bans};
+	},
+	
+	unblocklist: function() {
+		var unbans = _.reduce(_.toArray(arguments).join(':').split(';'), function(unbans, args){
+			args = args.split(':');
+			var unban = makeUser(args[2], "", "", args[0], args[1]);
+			unban.time = parseFloat(args[3]);
+			unban.by = args[4];
+			unbans[unban.name] = unban;
+			return unbans;
+		},{});
+		return {
+			type: "unblocklist",
+			unbans: unbans};
+	},
+	
+	bansearchresult: function(_noidea, name, ip, key, by, date){
+		if(undefined === name){
+			return {type: "bansearchresult", result: false};
+		}
+		var result = makeUser(name, "", "", key);
+		result.time = Math.round(new Date(date)/1000);
+		result.by = by;
+		return {type: "bansearchresult",result: result};
+	},
+	
+	g_participants: function(){
+		var users = _.reduce(_.toArray(arguments).join(':').split(';'), function(users, args){
+			args = args.split(':');
+			if(args[3] === "None") args[3] = "";
+			if(args[4] === "None") args[4] = "";
+			var user = makeUser(args[3], args[4], args[2], "", "");
+			user.sess = args[0];
+			user.time = parseFloat(args[1]);
+			users[user.sess] = user;
+			return users;
+		},{});
+		return {
+			type: "g_participants",
+			users: users};
+	},
+	
+	participant: function(mode, sess, user_id, name, alias, ip, time) {
+		if(name === "None") name = "";
+		if(alias === "None") alias = "";
+		return {
+			type: "participant",
+			time: parseFloat(time),
+			sess: sess,
+			mode: ( mode == "0" ? "leave" : mode == "1" ? "join" : mode == "2" ? "change" : undefined ),
+			user: makeUser(name, alias, user_id, "", "")
+		};
 	}
 };
 
@@ -237,7 +244,7 @@ var frameTypesPM = {
 		return {
 			type: "idleupdate",
 			name: name,
-			state: state == "1" ? 'on' : 'idle'};
+			state: state == "1" ? 'online' : 'idle'};
 	},
 	msg: function(name, alias, prem, time) {
 		return {
@@ -289,7 +296,9 @@ var frameTypesPM = {
 	connect: function(name, time, state) {
 		return {
 			type: "connect",
-			name: name};
+			name: name,
+			time: parseInt(time),
+			state: state};
 	},
 	show_fw: function() {
 		return {type: "show_fw"};

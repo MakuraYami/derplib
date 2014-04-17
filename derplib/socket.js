@@ -46,18 +46,22 @@ Socket.prototype.connect = function()
 	
 	this._writeLock = true;
 	
-	this._socket.connect(this._port, this._host, function() {
-		self._connected = true;
-		self._writeLock = false;
-		
-		self._pingTask = setInterval(function() {
-			if(self._connected) {
-				self.write([]);
-			}
-		}, 30000);
-		
-		self.emit('onconnect');
-	});
+	if(this._socket._events.connect){
+		this._socket.connect(this._port, this._host);
+	}else{
+		this._socket.connect(this._port, this._host, function() {
+			self._connected = true;
+			self._writeLock = false;
+			
+			self._pingTask = setInterval(function() {
+				if(self._connected) {
+					self.write([]);
+				}
+			}, 30000);
+			
+			self.emit('onconnect');
+		});
+	}
 	
 	if(reconnecting) return;
 	
@@ -139,7 +143,7 @@ Socket.prototype.write = function(data) {
 		{
 			_.each(this._writeBuffer, function(value){
 				this.write(value);
-			});
+			}.bind(this));
 			
 			if(data)
 				this.emit('write', data.join(':'));

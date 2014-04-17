@@ -1,13 +1,13 @@
 'use strict';
 ///////////////////
 // Base requires //
-var util 		= require('util'),
-	events 		= require('events'),
-	url			= require('url'),
-	http		= require('http'),
+var util            = require('util'),
+	events        = require('events'),
+	url               = require('url'),
+	http             = require('http'),
 	querystring = require('querystring'),
-	_			= require('underscore'),
-	colors 		= require('colors');
+	_				    = require('underscore'),
+	colors		    = require('colors');
 	
 var MM = module.parent,
 	socket 	= MM.libary.load('socket'),
@@ -36,6 +36,7 @@ function PM(options) {
 	this._writeLock = false;
 	this._consoleFilter = ['premium', 'msg'];
 	this._messages = [];
+	this._sock = false;
 	this._autoReconnect = options.reconnect || true;
 	this._settings = {
 		useBackground: true,
@@ -49,7 +50,7 @@ function PM(options) {
 	var self = this;
 	
 	eventModule.emit("event", "newpm", this._account, function(settings){
-		if(Object.prototype.toString.call(settings) === "[object Object]")
+		if(_.isObject(settings))
 			self._settings = _.extend(self._settings, settings);
 		self.login();
 	});
@@ -78,7 +79,7 @@ PM.prototype.login = function(){
 }
 
 PM.prototype.authenticate = function(callback){
-	console.log('logging in to account', this._account);
+	console.log('[PM] Logging in to account', this._account);
 	var auth_re = /auth\.chatango\.com ?= ?([^;]*)/;
 	var data = querystring.stringify({user_id: this._account, password: this._password, storecookie: 'on', checkerrors: 'yes'});
 	var options = {host: 'chatango.com', port: 80, path: '/login', method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': data.length}};
@@ -89,8 +90,6 @@ PM.prototype.authenticate = function(callback){
 			if (m) return callback(m[1]);
 		}
 		callback(false);
-		res.on('data', function(chunk){ });
-		res.on('end', function(){ });
 	}).on('error', function(e) {
 		callback(false);
 	});
@@ -198,7 +197,7 @@ PM.prototype._onAuth = function(){
 		eventModule.emit('event', 'PmFriendList', _frame.contacts);
 	});
 	
-	this.on('frmae_settings', function(_frame) {
+	this.on('frame_settings', function(_frame) {
 	});
 	
 	this.on('frame_idleupdate', function(_frame) {
@@ -230,6 +229,9 @@ PM.prototype._onAuth = function(){
 	});
 	
 	this.on('frame_connect', function(_frame){
+		var contact = utils.parseContact(_frame.state, _frame.time);
+		_frame.time = contact.time;
+		_frame.state = contact.state;
 		eventModule.emit('PmChatOpen', _frame);
 	});
 	
@@ -280,11 +282,11 @@ PM.prototype.write = function(args) {
 		this._sock.write(args);
 }
 
-PM.prototype.message = function(body, name) {
+PM.prototype.message = function(name, body) {
 	
 	if(this._writeLock || !name || !body) return;
 	
-	if(Object.prototype.toString.call(body) == '[object Array]'){
+	if(_.isArray(body)){
 		var output = '';
 		for(var i=0; i<body.length; i++){
 			output += '<P>'+this.font()+body[i]+'</g></P>';
