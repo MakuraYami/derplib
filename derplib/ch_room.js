@@ -475,34 +475,6 @@ Room.prototype.message = function(body) {
 	}
 };
 
-Room.prototype.userTime = function(user, cb){
-	var pm = _.find(MM.parent._data.pms, function(pm){
-		return pm._sock && pm._sock._connected;
-	});
-	if(pm){
-		console.log("Found PM, connecting to user");
-		pm.connectChat(user);
-		eventModule.once('PmChatOpen', function(frame){
-			pm.disconnectChat(user);
-			if(frame.state == 'offline'){
-				pm.addfreind(user);
-				eventModule.once('PmFriendAdded', function(_frame){
-					var freind = {
-						time: _frame.time,
-						name: _frame.name,
-						state: 'offline'
-					}
-					return cb(freind);
-				});
-			}else{
-				cb(frame);
-			}
-		});
-	}else{
-		cb(false);
-	}
-}
-
 // Chatango functions
 
 Room.prototype.login = function(){
