@@ -23,8 +23,8 @@ Request.prototype.parseMessage = function(frame) {
 		room:		this.room.name,
 		stime:		frame.time, // Server time
 		alias: 		frame.user.alias,
-		user_id: 	frame.user.user_id,
-		user_key: 	frame.user.user_key, //mod only
+		user_id: 	frame.user.id,
+		user_key: 	frame.user.key, //mod only
 		number: 	frame.number,
 		ip: 		frame.ip, //mod only
 		user_number: frame.user.id,
@@ -53,6 +53,9 @@ Request.prototype.parseMessage = function(frame) {
 	}
 	if(frame.user.type == 'anon') {
 		frame.user.name = '_anon' + utils.getAnonId(message.nameColor, message.user_id);
+	}
+	else if(frame.user.type == 'temp') {
+		frame.user.name = '#' + frame.user.alias;
 	}
 	else if(frame.user.type == 'user'){
 		if(this.room.mods.indexOf(frame.user.name) != -1) frame.user.access = 1;
@@ -83,6 +86,7 @@ Request.prototype.parseMessage = function(frame) {
 		}
 		message.links.push(link);
 	});
+	message.name = frame.user.name;
 	this.message = message;
 	this.user = frame.user;
 }
