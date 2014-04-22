@@ -62,20 +62,20 @@ var frameTypesRoom = {
 		return {type: "badlogin"};
 	},
 	
-	tb: function() {
-		return {type: "tb"};
+	tb: function(seconds) {
+		return {type: "tb", time: seconds};
 	},
 	
 	show_fw: function() {
 		return {type: "show_fw"};
 	},
 	
-	fw: function() {
-		return {type: "fw"};
+	end_fw: function() {
+		return {type: "end_fw"};
 	},
 	
-	show_tb: function() {
-		return {type: "show_tb"};
+	show_tb: function(seconds) {
+		return {type: "show_tb", time: seconds};
 	},
 	
 	"delete": function(msgid) {
@@ -86,8 +86,8 @@ var frameTypesRoom = {
 		return {type: "deleteall", msgids: _.toArray(arguments)};
 	},
 	
-	clearall: function() {
-		return {type: "clearall"};
+	clearall: function(answer) {
+		return {type: "clearall", answer: answer};
 	},
 	
 	mods: function(mods) {
@@ -122,35 +122,49 @@ var frameTypesRoom = {
 		return {type: "n", count: parseInt(num, 16)};
 	},
 	
-	blocked: function(unid, ip, name, bansrc, time) {
+	blocked: function(unid, ip, name, by, time) {
 		return {
 			type: "blocked",
 			unid: unid,
 			ip: ip,
 			name: name,
-			bansrc: bansrc,
+			by: by,
 			time: time};
 	},
 	
-	unblocked: function(unid, ip, name, unbansrc, time) {
+	unblocked: function(unid, ip, name, banner, time) {
 		return {
 			type: "unblocked",
 			unid: unid,
 			ip: ip,
 			name: name,
-			unbansrc: unbansrc,
+			banner: banner,
 			time: time};
 	},
 	
 	// Test this
 	blocklist: function() {
 		var bans = _.reduce(_.toArray(arguments).join(':').split(';'), function(bans, args){
-			args = args.split(':');
-			var ban = makeUser(args[2], "", "", args[0], args[1]);
-			ban.time = parseFloat(args[3]);
-			ban.by = args[4];
-			bans[ban.name] = ban;
-			return bans;
+			if(args){
+				args = args.split(':');
+				if(args[0].match(/;/)){
+					var key = args[0].split(';')[1];
+				}else{
+					var key = args[0];
+				}
+				var ban = makeUser(args[2], "", "", key, args[1]);
+				ban.time = parseFloat(args[3]);
+				if(args[4].match(/;/)){
+					ban.by = args[4].split(';')[0];
+				}else{
+					ban.by = args[4];
+				}
+				bans[ban.name] = ban;
+				return bans;
+			}else{
+				bans = {};
+				return bans;
+			}
 		},{});
 		return {
 			type: "blocklist",
@@ -159,12 +173,26 @@ var frameTypesRoom = {
 	
 	unblocklist: function() {
 		var unbans = _.reduce(_.toArray(arguments).join(':').split(';'), function(unbans, args){
-			args = args.split(':');
-			var unban = makeUser(args[2], "", "", args[0], args[1]);
-			unban.time = parseFloat(args[3]);
-			unban.by = args[4];
-			unbans[unban.name] = unban;
-			return unbans;
+			if(args){
+				args = args.split(':');
+				if(args[0].match(/;/)){
+					var key = args[0].split(';')[1];
+				}else{
+					var key = args[0];
+				}
+				var unban = makeUser(args[2], "", "", key, args[1]);
+				unban.time = parseFloat(args[3]);
+				if(args[4].match(/;/)){
+					unban.by = args[4].split(';')[0];
+				}else{
+					unban.by = args[4];
+				}
+				unbans[unban.name] = unban;
+				return unbans;
+			}else{
+				unbans = {};
+				return unbans;
+			}
 		},{});
 		return {
 			type: "unblocklist",
@@ -175,7 +203,7 @@ var frameTypesRoom = {
 		if(undefined === name){
 			return {type: "bansearchresult", result: false};
 		}
-		var result = makeUser(name, "", "", key);
+		var result = makeUser(name, "", "", key, ip);
 		result.time = Math.round(new Date(date)/1000);
 		result.by = by;
 		return {type: "bansearchresult",result: result};
@@ -186,9 +214,11 @@ var frameTypesRoom = {
 			args = args.split(':');
 			if(args[3] === "None") args[3] = "";
 			if(args[4] === "None") args[4] = "";
-			var user = makeUser(args[3], args[4], args[2], "", "");
-			user.sess = args[0];
-			user.time = parseFloat(args[1]);
+			var user = { 
+				user: makeUser(args[3], args[4], args[2], "", ""),
+				sess: args[0],
+				time: parseFloat(args[1])
+			};
 			users[user.sess] = user;
 			return users;
 		},{});
