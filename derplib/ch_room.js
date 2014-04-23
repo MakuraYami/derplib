@@ -623,7 +623,7 @@ Room.prototype.unban = function(user) {
 
 Room.prototype.requestBanlist = function() {
 	if(this._isModerator){
-		this.write(['blocklist', 'block', '',  'next', '500', 'anons', '1']);
+		this.write(['blocklist', 'block', '',  'next', '500']);//, 'anons', '1'
 	}
 }
 
