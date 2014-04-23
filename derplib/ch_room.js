@@ -226,18 +226,18 @@ Room.prototype._onAuth = function(){
 		self._messages.push(req.message);
 		if(self._messages.length > 100)
 			self._messages.shift();
-		_.each(self.users, function(frame){
-			var type,
-				nameColor = /<n([0-9a-f]*)\/>/gi.exec(_frame.body);
-			if(_frame.user.name && _frame.user.alias === undefined) type = 'user';
-			else if(_frame.user.name === undefined && _frame.user.alias) type = 'temp';
-			else type = 'anon';
-			if(type == 'anon') {
-				_frame.user.name = '_anon' + utils.getAnonId(nameColor, _frame.user.id);
-			}
-			else if(type == 'temp') {
-				_frame.user.name = '#' + _frame.user.alias;
-			}
+		var type,
+			nameColor = /<n([0-9a-f]*)\/>/gi.exec(_frame.body);
+		if(_frame.user.name && _frame.user.alias === undefined) type = 'user';
+		else if(_frame.user.name === undefined && _frame.user.alias) type = 'temp';
+		else type = 'anon';
+		if(type == 'anon') {
+			_frame.user.name = '_anon' + utils.getAnonId(nameColor, _frame.user.id);
+		}
+		else if(type == 'temp') {
+			_frame.user.name = '#' + _frame.user.alias;
+		}
+		_.each(this.users, function(frame){
 			if((type == 'temp' || type == 'anon') && frame.user.id == _frame.user.id){
 				frame.user.name = _frame.user.name;
 				frame.user.key = _frame.user.key;
@@ -264,18 +264,18 @@ Room.prototype._onAuth = function(){
 		self._messages.push(req.message);
 		if(self._messages.length > 100)
 			self._messages.shift();
-		_.each(self.users, function(frame){
-			var type,
-				nameColor = /<n([0-9a-f]*)\/>/gi.exec(_frame.body);
-			if(_frame.user.name && _frame.user.alias === undefined) type = 'user';
-			else if(_frame.user.name === undefined && _frame.user.alias) type = 'temp';
-			else type = 'anon';
-			if(type == 'anon') {
-				_frame.user.name = '_anon' + utils.getAnonId(nameColor, _frame.user.id);
-			}
-			else if(type == 'temp') {
-				_frame.user.name = '#' + _frame.user.alias;
-			}
+		var type,
+			nameColor = /<n([0-9a-f]*)\/>/gi.exec(_frame.body);
+		if(_frame.user.name && _frame.user.alias === undefined) type = 'user';
+		else if(_frame.user.name === undefined && _frame.user.alias) type = 'temp';
+		else type = 'anon';
+		if(type == 'anon') {
+			_frame.user.name = '_anon' + utils.getAnonId(nameColor, _frame.user.id);
+		}
+		else if(type == 'temp') {
+			_frame.user.name = '#' + _frame.user.alias;
+		}
+		_.each(this.users, function(frame){
 			if((type == 'temp' || type == 'anon') && frame.user.id == _frame.user.id){
 				frame.user.name = _frame.user.name;
 				frame.user.key = _frame.user.key;
