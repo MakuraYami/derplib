@@ -603,10 +603,11 @@ Room.prototype.clearall = function() {
 }
 
 Room.prototype.ban = function(user) {
+	var self = this;
 	if(this._isModerator) {
 		_.each(this.users, function(frame){
 			if(frame.user.name.toLowerCase() == user.toLowerCase() && frame.user.key && frame.user.ip){
-				this.write(['block', frame.user.key, frame.user.ip, frame.user.name]);
+				self.write(['block', frame.user.key, frame.user.ip, frame.user.name]);
 			}
 		});
 	}
