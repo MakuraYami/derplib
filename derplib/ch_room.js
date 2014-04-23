@@ -208,8 +208,8 @@ Room.prototype._onAuth = function(){
 		
 		self.write(['getpremium', '1']);
 		self.write(['g_participants','start']);
-		//this.getBannedWords();
-		//this.requestBanlist();
+		self.getBannedWords();
+		self.requestBanlist();
 		self.emit('joined');
 	});
 	
@@ -217,7 +217,7 @@ Room.prototype._onAuth = function(){
 	// Data management //
 	
 	this.on('frame_i', function(_frame) {
-		
+	
 		var req = new request.make(self);
 		req.parseMessage(_frame);
 		
@@ -226,7 +226,27 @@ Room.prototype._onAuth = function(){
 		self._messages.push(req.message);
 		if(self._messages.length > 100)
 			self._messages.shift();
-		
+
+		_.each(this.users, function(frame){
+			if((req.user.type == 'temp' || req.user.type == 'anon') && frame.user.id == _frame.user.id){
+				frame.user.name = req.user.name;
+				frame.user.key = _frame.user.key;
+				frame.user.ip = _frame.user.ip;
+			}else if(req.user.type == 'user'){
+				if(frame.user.name){
+					if(frame.user.name.toLowerCase() == req.user.name.toLowerCase() && frame.user.id == _frame.user.id){
+						frame.user.key = _frame.user.key;
+						frame.user.ip = _frame.user.ip;
+					}
+				}else{
+					if(frame.user.id == _frame.user.id){
+						frame.user.name = req.user.name;
+						frame.user.key = _frame.user.key;
+						frame.user.ip = _frame.user.ip;
+					}
+				}
+			}
+		});
 	});
 	
 	this.on('frame_b', function(_frame) {
@@ -244,6 +264,27 @@ Room.prototype._onAuth = function(){
 		self._messages.push(req.message);
 		if(self._messages.length > 100)
 			self._messages.shift();
+
+		_.each(this.users, function(frame){
+			if((req.user.type == 'temp' || req.user.type == 'anon') && frame.user.id == _frame.user.id){
+				frame.user.name = req.user.name;
+				frame.user.key = _frame.user.key;
+				frame.user.ip = _frame.user.ip;
+			}else if(req.user.type == 'user'){
+				if(frame.user.name){
+					if(frame.user.name.toLowerCase() == req.user.name.toLowerCase() && frame.user.id == _frame.user.id){
+						frame.user.key = _frame.user.key;
+						frame.user.ip = _frame.user.ip;
+					}
+				}else{
+					if(frame.user.id == _frame.user.id){
+						frame.user.name = req.user.name;
+						frame.user.key = _frame.user.key;
+						frame.user.ip = _frame.user.ip;
+					}
+				}
+			}
+		});
 	});
 	
 	this.on('frame_u', function(_frame) {
@@ -298,10 +339,14 @@ Room.prototype._onAuth = function(){
 		}
 	});
 	
-	this.on('frame_show_fw', function(args) {
+	this.on('frame_show_fw', function(_frame) {
 		console.log(('['+self.name+'] Flood warning. Going in lockdown').bold.red);
 		self._writeLock = true;
 		self.emit('start_fw');
+		setTimeout(function(){
+			self._writeLock = false;
+			self.emit('end_fw');
+		}, 10000);
 		/*
 		setTimeout(function(){
 			//raw write to bypass lock
@@ -311,31 +356,33 @@ Room.prototype._onAuth = function(){
 		}, 5000);*/
 	});
 	
-	this.on('frame_end_fw', function(args) {
+	this.on('frame_end_fw', function(_frame) {
 		self._writeLock = false;
 		self.emit('end_fw');
 	});
 	
-	this.on('frame_show_tb', function() {
+	this.on('frame_show_tb', function(_frame) {
 		// 15 minutes, result of flooding
+		console.log(('['+self.name+'] Tempbanned for '+_frame.time+' seconds').bold.red);
 		self.emit('start_tempban');
 	});
 	
-	this.on('frame_tb', function(args){
-		self.emit('tempban', args);
+	this.on('frame_tb', function(_frame){
+		console.log(('['+self.name+'] still Tempbanned you have '+_frame.time+' more seconds').bold.red);
+		self.emit('tempban', _frame.time);
 	});
 	
-	this.on('frame_clearall', function(){
-		if(args[0] == 'ok'){
-			for(var i=0; i<self.messages.length; i++){
-				self.messages[i].deleted = true;
+	this.on('frame_clearall', function(_frame){
+		if(_frame.answer == 'ok'){
+			for(var i=0; i<self._messages.length; i++){
+				self._messages[i].deleted = true;
 			}
-			self.emit('clearall', args);
+			self.emit('clearall', _frame.answer);
 		}
 	});
 	
-	this.on('frame_delete', function(args){
-		var msg = _.find(self.messages, function(x){ return (x.id == args[0]); });
+	this.on('frame_delete', function(_frame){
+		var msg = _.find(self._messages, function(x){ return (x.id == _frame.msgid); });
 		msg.deleted = true
 		self.emit('message_delete', msg);
 	});
@@ -344,10 +391,10 @@ Room.prototype._onAuth = function(){
 		self.emit('profileupdate', args[0]);
 	});
 	
-	this.on('frame_mods', function(args) {
-		self.mods = args;
-		var added = _.find(args, function(x){ return self.mods.indexOf(x) >= 0; });
-		var removed = _.find(self.mods, function(x){ return args.indexOf(x) < 0; });
+	this.on('frame_mods', function(_frame) {
+		self.mods = _frame.mods;
+		var added = _.find(_frame.mods, function(x){ return self.mods.indexOf(x) >= 0; });
+		var removed = _.find(self.mods, function(x){ return _frame.mods.indexOf(x) < 0; });
 		
 		if(added){
 			self.emit('mod_added', added);
@@ -356,47 +403,35 @@ Room.prototype._onAuth = function(){
 		}
 	});
 	
-	this.on('frame_blocklist', function(args) {
-		var bans = args.join(':').split(';');
-		_.each(bans, function(ban){
-			var banargs = ban.split(':');
-			var ban = {
-				id: banargs[0],
-				ip: banargs[1],
-				username: banargs[2],
-				time: banargs[3],
-				by: banargs[4]
-			};
-			self._bans[ban.username] = ban;
-		});
+	this.on('frame_blocklist', function(_frame) {
+		self._bans = _frame.bans;
 	});
 	
-	this.on('frame_blocked', function(args) {
+	this.on('frame_blocked', function(_frame) {
 		var ban = {
-			id: args[0],
-			ip: args[1],
-			username: args[2],
-			by: args[3],
-			time: args[4]
+			key: _frame.unid,
+			ip: _frame.ip,
+			name: _frame.name,
+			by: _frame.by,
+			time: _frame.time
 		};
-		self._bans[ban.username] = ban;
+		self._bans[ban.name] = ban;
 		self.emit('ban', ban);
 	});
 	
-	this.on('frame_unblocked', function(args) {
+	this.on('frame_unblocked', function(_frame) {
 		var unban = {
-			id: args[0],
-			ip: args[1],
-			username: args[2],
-			banner: args[3],
-			time: args[4]
+			key: _frame.unid,
+			ip: _frame.ip,
+			name: _frame.name,
+			banner: _frame.banner,
+			time: _frame.time
 		};
-		delete self._bans[unban.username];
+		delete self._bans[unban.name];
 		self.emit('unban', unban);
 	});
 	
-	this.on('frame_bansearchresult', function(args) {
-		
+	this.on('frame_bansearchresult', function(_frame) {
 	});
 	
 	this.on('frame_getbannedwords', function(args) {
@@ -470,22 +505,6 @@ Room.prototype.message = function(body) {
 	}
 };
 
-Room.prototype.userTime = function(user, cb){
-	var pm = _.find(MM.parent._data.pms, function(pm){
-		return pm._sock && pm._sock._connected;
-	});
-	if(pm){
-		console.log("Found PM, connecting to user");
-		pm.connectChat(user);
-		eventModule.once('PmChatOpen', function(frame){
-			pm.disconnectChat(user);
-			cb(frame);
-		});
-	}else{
-		cb(false);
-	}
-}
-
 // Chatango functions
 
 Room.prototype.login = function(){
@@ -515,35 +534,49 @@ Room.prototype.removeMod = function(name) {
 }
 
 Room.prototype.flag = function(message) {
-	if(message.id){
-		this.write(['g_flag', message.id]);
+	if(this._isModerator){
+		var msg = _.find(this._messages.reverse(), function(msg){
+			return !msg.deleted && msg.text == message;
+		});
+		if(msg) this.write(['g_flag', msg.id]);
 	}
 }
 
-Room.prototype.delmsg = function(message) {
+Room.prototype.flagUser = function(name) {
 	if(this._isModerator){
-		if(message.id){
-			this.write(['delmsg', message.id]);
-		}else{
-			var self = this;
-			var count = 0;
-			var inter = setInterval(function(){
-				if(count > 200){
-					clearInterval(inter);
-				}
-				if(message.id){
-					this.write(['delmsg', message.id]);
-					clearInterval(inter);
-				}
-				count++;
-			}, 50);
-		}
+		var msg = _.find(this._messages.reverse(), function(msg){
+			return !msg.deleted && msg.name.toLowerCase() == name.toLowerCase();
+		});
+		if(msg) this.flag(msg.text);
 	}
 }
 
-Room.prototype.clearUser = function(message) {
+Room.prototype.del = function(message) {
 	if(this._isModerator){
-		this.write(['delallmsg', message.uid]);
+		var msg = _.find(this._messages.reverse(), function(msg){
+			return !msg.deleted && msg.text == message;
+		});
+		if(msg) this.write(['delmsg', msg.id]);
+	}
+}
+
+Room.prototype.delUser = function(name) {
+	if(this._isModerator){
+		var msg = _.find(this._messages.reverse(), function(msg){
+			return !msg.deleted && msg.name.toLowerCase() == name.toLowerCase();
+		});
+		if(msg) this.del(msg.text);
+	}
+}
+
+Room.prototype.clearUser = function(name) {
+	if(this._isModerator){
+		var self = this;
+		_.each(this.users, function(frame){
+			if(frame.user.name.toLowerCase() == name.toLowerCase() && frame.user.key){
+				self.write(['delallmsg', frame.user.key]);
+			}
+		});
 	}
 }
 
@@ -554,23 +587,27 @@ Room.prototype.clearall = function() {
 }
 
 Room.prototype.ban = function(user) {
+	var self = this;
 	if(this._isModerator) {
-		if(user.key && user.ip && user.name)
-			this.write(['block', user.key, user.ip, user.name]);
+		_.each(this.users, function(frame){
+			if(frame.user.name.toLowerCase() == user.toLowerCase() && frame.user.key && frame.user.ip){
+				self.write(['block', frame.user.key, frame.user.ip, frame.user.name]);
+			}
+		});
 	}
 }
 
 Room.prototype.unban = function(user) {
 	if(this._isModerator) {
-		if(this._bans[user.name]){
-			this.write(['removeblock', this.bans[user.name].id, this.bans[user.name].ip]); 
+		if(this._bans[user].name){
+			this.write(['removeblock', this._bans[user].key, this._bans[user].ip, this._bans[user].name]); 
 		}
 	}
 }
 
 Room.prototype.requestBanlist = function() {
 	if(this._isModerator){
-		this.write(['blocklist', 'block', '',  'next', '500']); //, 'anons', '1'
+		this.write(['blocklist', 'block', '',  'next', '500']);//, 'anons', '1'
 	}
 }
 
