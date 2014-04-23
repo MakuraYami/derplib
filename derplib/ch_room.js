@@ -227,7 +227,22 @@ Room.prototype._onAuth = function(){
 		if(self._messages.length > 100)
 			self._messages.shift();
 		_.each(self.users, function(frame){
-			if(frame.user.name.toLowerCase() == _frame.user.name.toLowerCase() && frame.user.id == _frame.user.id){
+			var type,
+				nameColor = /<n([0-9a-f]*)\/>/gi.exec(_frame.body);
+			if(_frame.user.name && _frame.user.alias === undefined) type = 'user';
+			else if(_frame.user.name === undefined && _frame.user.alias) type = 'temp';
+			else type = 'anon';
+			if(type == 'anon') {
+				_frame.user.name = '_anon' + utils.getAnonId(nameColor, _frame.user.id);
+			}
+			else if(type == 'temp') {
+				_frame.user.name = '#' + _frame.user.alias;
+			}
+			if((type == 'temp' || type == 'anon') && frame.user.id == _frame.user.id){
+				frame.user.name = _frame.user.name;
+				frame.user.key = _frame.user.key;
+				frame.user.ip = _frame.user.ip;
+			}else if(frame.user.name == _frame.user.name && frame.user.id == _frame.user.id){
 				frame.user.key = _frame.user.key;
 				frame.user.ip = _frame.user.ip;
 			}
@@ -250,7 +265,22 @@ Room.prototype._onAuth = function(){
 		if(self._messages.length > 100)
 			self._messages.shift();
 		_.each(self.users, function(frame){
-			if(frame.user.name.toLowerCase() == _frame.user.name.toLowerCase() && frame.user.id == _frame.user.id){
+			var type,
+				nameColor = /<n([0-9a-f]*)\/>/gi.exec(_frame.body);
+			if(_frame.user.name && _frame.user.alias === undefined) type = 'user';
+			else if(_frame.user.name === undefined && _frame.user.alias) type = 'temp';
+			else type = 'anon';
+			if(type == 'anon') {
+				_frame.user.name = '_anon' + utils.getAnonId(nameColor, _frame.user.id);
+			}
+			else if(type == 'temp') {
+				_frame.user.name = '#' + _frame.user.alias;
+			}
+			if((type == 'temp' || type == 'anon') && frame.user.id == _frame.user.id){
+				frame.user.name = _frame.user.name;
+				frame.user.key = _frame.user.key;
+				frame.user.ip = _frame.user.ip;
+			}else if(frame.user.name == _frame.user.name && frame.user.id == _frame.user.id){
 				frame.user.key = _frame.user.key;
 				frame.user.ip = _frame.user.ip;
 			}
