@@ -233,10 +233,18 @@ Room.prototype._onAuth = function(){
 				frame.user.key = _frame.user.key;
 				frame.user.ip = _frame.user.ip;
 			}else if(req.user.type == 'user'){
-				if(frame.user.name.toLowerCase() == req.user.name.toLowerCase() && frame.user.id == _frame.user.id){
-					frame.user.key = _frame.user.key;
-					frame.user.ip = _frame.user.ip;
-				}	
+				if(frame.user.name){
+					if(frame.user.name.toLowerCase() == req.user.name.toLowerCase() && frame.user.id == _frame.user.id){
+						frame.user.key = _frame.user.key;
+						frame.user.ip = _frame.user.ip;
+					}
+				}else{
+					if(frame.user.id == _frame.user.id){
+						frame.user.name = req.user.name;
+						frame.user.key = _frame.user.key;
+						frame.user.ip = _frame.user.ip;
+					}
+				}
 			}
 		});
 	});
@@ -263,10 +271,18 @@ Room.prototype._onAuth = function(){
 				frame.user.key = _frame.user.key;
 				frame.user.ip = _frame.user.ip;
 			}else if(req.user.type == 'user'){
-				if(frame.user.name.toLowerCase() == req.user.name.toLowerCase() && frame.user.id == _frame.user.id){
-					frame.user.key = _frame.user.key;
-					frame.user.ip = _frame.user.ip;
-				}	
+				if(frame.user.name){
+					if(frame.user.name.toLowerCase() == req.user.name.toLowerCase() && frame.user.id == _frame.user.id){
+						frame.user.key = _frame.user.key;
+						frame.user.ip = _frame.user.ip;
+					}
+				}else{
+					if(frame.user.id == _frame.user.id){
+						frame.user.name = req.user.name;
+						frame.user.key = _frame.user.key;
+						frame.user.ip = _frame.user.ip;
+					}
+				}
 			}
 		});
 	});
