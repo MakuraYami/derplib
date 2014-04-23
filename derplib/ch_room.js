@@ -242,7 +242,7 @@ Room.prototype._onAuth = function(){
 				frame.user.name = _frame.user.name;
 				frame.user.key = _frame.user.key;
 				frame.user.ip = _frame.user.ip;
-			}else if(type == 'user' && frame.user.name == _frame.user.name && frame.user.id == _frame.user.id){
+			}else if(type == 'user' && frame.user.name.toLowerCase() == _frame.user.name.toLowerCase() && frame.user.id == _frame.user.id){
 				frame.user.key = _frame.user.key;
 				frame.user.ip = _frame.user.ip;
 			}
@@ -280,7 +280,7 @@ Room.prototype._onAuth = function(){
 				frame.user.name = _frame.user.name;
 				frame.user.key = _frame.user.key;
 				frame.user.ip = _frame.user.ip;
-			}else if(type == 'user' && frame.user.name == _frame.user.name && frame.user.id == _frame.user.id){
+			}else if(type == 'user' && frame.user.name.toLowerCase() == _frame.user.name.toLowerCase() && frame.user.id == _frame.user.id){
 				frame.user.key = _frame.user.key;
 				frame.user.ip = _frame.user.ip;
 			}
