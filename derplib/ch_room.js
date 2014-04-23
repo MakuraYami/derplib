@@ -56,11 +56,11 @@ function Room(options) {
 	this._reconnectDelay = 5;
 	this._settings = {
 		useBackground: true,
-		useRecording: true,
-		nameColor: 'edf23e',
-		textSize: '12',
-		textColor: 'edf23e',
-		textFont: '2',
+		useRecording: false,
+		nameColor: '000',
+		textSize: '13',
+		textColor: '000',
+		textFont: '8',
 	};
 	
 	var self = this;
