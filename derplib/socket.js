@@ -23,8 +23,6 @@ function Socket(host, port)
 	this._writeBuffer = [];
 	this._buffer = '';
 	
-	this.foobar = false;
-	
 	this.connect();
 }
 
@@ -114,11 +112,6 @@ Socket.prototype.connect = function()
 
 Socket.prototype.disconnect = function(){
 	this._socket.destroy();
-}
-
-Socket.prototype.reconnect = function(){
-	this.disconnect();
-	this.connect();
 }
 
 Socket.prototype.setWriteLock = function(bool) {

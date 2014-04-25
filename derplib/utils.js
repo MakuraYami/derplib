@@ -7,7 +7,7 @@ var util 	= require('util'),
 var MM = module.parent;
 	
 var crypto_algorithm = 'aes-256-cbc';
-var crypto_key 	= '05f4PP1rL4JPff4PljY3G4ytZxRN662f'; // You should change this
+var crypto_key 	= '05f4PP1rL4JPff4PljY3G4ytZxRN662f'; // If you want to use encryption, change this
 var crypto_iv 	= 'T9terqJ0NlCk7OwV'; // And this
 
 exports.encrypt = function(text){
@@ -156,6 +156,54 @@ exports.secondsToString = function(seconds, depth) {
     result = result.slice(0,depth);
     return result.length == 1 ? result[0] : result.slice(0,result.length-1).join(' ')+' and '+result[result.length-1];
 }
+/* OLD 
+exports.secondsToString = function(seconds, depth) {
+	console.log('seconds to string', seconds);
+    function numberEnding (number) { //todo: replace with a wiser code
+        return (number > 1) ? 's' : '';
+    }
+	
+    var temp = seconds;
+	var string = '';
+	depth = (depth || 2);
+	var current_depth = 0;
+	
+    var years = Math.floor(temp / 31536000);
+    if (years) {
+		current_depth++;
+        string += years + ' year' + numberEnding(years);
+		if(depth <= current_depth) return string;
+    }
+    var days = Math.floor((temp %= 31536000) / 86400);
+    if (days) {
+		current_depth++;
+		var last = (depth <= current_depth);
+        string += (string?' ':'') + (last?'and ':'') + days + ' day' + numberEnding(days);
+		if(depth <= current_depth) return string;
+    }
+    var hours = Math.floor((temp %= 86400) / 3600);
+    if (hours) {
+		current_depth++;
+		var last = (depth <= current_depth);
+        string += (string?' ':'') + (last?'and ':'') + hours + ' hour' + numberEnding(hours);
+		if(depth <= current_depth) return string;
+    }
+    var minutes = Math.floor((temp %= 3600) / 60);
+    if (minutes) {
+		current_depth++;
+		var last = (depth <= current_depth);
+        string += (string?' ':'') + (last?'and ':'') + minutes + ' minute' + numberEnding(minutes);
+		if(depth <= current_depth) return string;
+    }
+    var seconds = temp % 60;
+    if (seconds) {
+        string += (string?' and ':'') + seconds + ' second' + numberEnding(seconds);
+		return string;
+    }
+	if(string) return string;
+    else return 'less then a second'; //'just now' //or other string you like;
+}*/
+
 
 // Base valiable types prototypes //
 
@@ -335,7 +383,6 @@ exports.genUid = function() {
 	return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// Seems to be broken - will fix later
 exports.getAnonId = function(n,ssid) { //n is from message body, ssid is user_id
 	//example: 5454/16766087 = anon1431
 	if(!n || !ssid) return false;
@@ -346,5 +393,17 @@ exports.getAnonId = function(n,ssid) { //n is from message body, ssid is user_id
 	}
 	return id;
 }
+
+/*
+ def aid(self, n, uid):
+ '''Generate Anon ID number'''
+ try:
+ if (int(n) == 0) or (len(n) < 4): n = "3452"
+ except ValueError: n = "3452"
+ if n != "3452": n = str(int(n))[-4:]
+ v1, v5 = 0, ""
+ for i in range(0, len(n)): v5 += str(int(n[i:][:1])+int(str(uid)[4:][:4][i:][:1]))[len(str(int(n[i:][:1])+int(str(uid)[4:][:4][i:][:1]))) - 1:]
+ return v5
+*/
 
 

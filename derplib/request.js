@@ -23,20 +23,18 @@ Request.prototype.parseMessage = function(frame) {
 		room:		this.room.name,
 		stime:		frame.time, // Server time
 		alias: 		frame.user.alias,
-		user_id: 	frame.user.user_id,
-		user_key: 	frame.user.user_key, //mod only
 		number: 	frame.number,
-		ip: 		frame.ip, //mod only
-		user_number: frame.user.id,
 		body: 		frame.body,
-		id: false, 	//is filled in later
-		
+		id: 		frame.id, 	//is filled in later
+		user_id: 	frame.user.id,
+		user_key: 	frame.user.key, //mod only
+		user_ip: 	frame.user.ip, //mod only
 		time: (+new Date),
 		deleted: false,
 	};
-	
+	// Set name to lowercase
 	if(frame.user.name) frame.user.name = frame.user.name.toLowerCase();
-	
+	// What kind of user is it
 	if(frame.user.name && frame.user.alias === undefined) frame.user.type = 'user';
 	else if(frame.user.name === undefined && frame.user.alias) frame.user.type = 'temp';
 	else frame.user.type = 'anon';
@@ -53,6 +51,9 @@ Request.prototype.parseMessage = function(frame) {
 	}
 	if(frame.user.type == 'anon') {
 		frame.user.name = '_anon' + utils.getAnonId(message.nameColor, message.user_id);
+	}
+	else if(frame.user.type == 'temp'){
+		frame.user.name = '#' + frame.user.alias;
 	}
 	else if(frame.user.type == 'user'){
 		if(this.room.mods.indexOf(frame.user.name) != -1) frame.user.access = 1;
@@ -83,6 +84,8 @@ Request.prototype.parseMessage = function(frame) {
 		}
 		message.links.push(link);
 	});
+	
+	message.name = frame.user.name;
 	this.message = message;
 	this.user = frame.user;
 }

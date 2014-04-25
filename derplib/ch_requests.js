@@ -11,12 +11,32 @@ var util 		= require('util'),
 var MM = module.parent,
 	utils 	= MM.libary.load('utils');
 
-// Get full profile code
-// http://barrykun.chatango.com/getfullprofile
-// Get profile info 
-// http://st.chatango.com/profileimg/b/a/barrykun/mod1.xml
-// Get full profile info 
-// http://st.chatango.com/profileimg/b/a/barrykun/mod2.xml
+/*
+
+Check if account exists
+http://chatango.com/checkname?name=barrykun
+Get full profile code
+http://barrykun.chatango.com/getfullprofile
+Get profile info 
+http://st.chatango.com/profileimg/b/a/barrykun/mod1.xml
+Get full profile info 
+http://st.chatango.com/profileimg/b/a/barrykun/mod2.xml
+Background
+http://ust.chatango.com/profileimg/b/a/barrykun/msgbg.xml
+Full prof css
+http://ust.chatango.com/profileimg/b/a/barrykun/custom_profile.css
+Check account status
+http://chatango.com/namecheckeraccsales?name=barrykun
+Check premium status
+http://chatango.com/isprem?sid=barrykun
+Image thumbnail
+http://ust.chatango.com/profileimg/b/a/barrykun/thumb.jpg
+Full Image
+http://fp.chatango.com/profileimg/b/a/barrykun/full.jpg
+Group css (404 if not a group)
+http://st.chatango.com/groupinfo/b/0/b0ty/gprofile.xml
+
+*/
 
 exports.profile = function(name, callback){
 

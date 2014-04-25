@@ -19,7 +19,7 @@ function makePremium(num) {
 
 function makeUser(name, alias, id, key, ip) {
 	return {
-		name: 	name  != "" ? name  : undefined,
+		name: 	name  != "" ? name.toLowerCase()  : undefined,
 		alias: 	alias != "" ? alias : undefined,
 		id: 	id 	  != "" ? id    : undefined,
 		key: 	key   != "" ? key   : undefined,
@@ -62,20 +62,28 @@ var frameTypesRoom = {
 		return {type: "badlogin"};
 	},
 	
-	tb: function() {
-		return {type: "tb"};
+	logoutok: function(){
+		return {type: "logoutok"};
 	},
 	
-	show_fw: function() {
+	tb: function(seconds) { // Might give time occasionally need to check
+		return {type: "tb", seconds: seconds};
+	},
+	
+	show_fw: function() { // same as tb
 		return {type: "show_fw"};
 	},
 	
-	fw: function() {
+	fw: function() { // Removed?
 		return {type: "fw"};
 	},
 	
-	show_tb: function() {
-		return {type: "show_tb"};
+	end_fw: function() {
+		return {type: "end_fw"};
+	},
+	
+	show_tb: function(seconds) { 
+		return {type: "show_tb", seconds: seconds};
 	},
 	
 	"delete": function(msgid) {
@@ -86,8 +94,8 @@ var frameTypesRoom = {
 		return {type: "deleteall", msgids: _.toArray(arguments)};
 	},
 	
-	clearall: function() {
-		return {type: "clearall"};
+	clearall: function(answer) {
+		return {type: "clearall", answer: answer};
 	},
 	
 	mods: function(mods) {
@@ -99,7 +107,7 @@ var frameTypesRoom = {
 			time: parseFloat(time),
 			type: "i",
 			user: makeUser(name, alias, user_id, user_key, ip),
-			msgid: msgid,
+			id: msgid,
 			premium: makePremium(parseInt(prem, 10)),
 			body: _.toArray(arguments).slice(9).join(":")};
 	},
@@ -110,6 +118,7 @@ var frameTypesRoom = {
 			type: "b",
 			user: makeUser(name, alias, user_id, user_key, ip),
 			number: number,
+			id: false,
 			premium: makePremium(parseInt(prem, 10)),
 			body: _.toArray(arguments).slice(9).join(":")};
 	},
@@ -122,30 +131,42 @@ var frameTypesRoom = {
 		return {type: "n", count: parseInt(num, 16)};
 	},
 	
-	blocked: function(unid, ip, name, bansrc, time) {
+	blocked: function(key, ip, name, by, time) {
+		var ban = makeUser(name, "", "", key, ip);
+		ban.time = parseFloat(time);
+		ban.by = by;
 		return {
 			type: "blocked",
-			unid: unid,
-			ip: ip,
-			name: name,
-			bansrc: bansrc,
-			time: time};
+			ban: ban};
 	},
 	
-	unblocked: function(unid, ip, name, unbansrc, time) {
+	unblocked: function() {
+		var args = _.toArray(arguments);
+		var unban = {
+			key: args.shift(),
+			ip: args.shift(),
+			time: parseInt(args.pop()),
+			by: args.pop()
+		}
+		var name = args.join(':').split(';');
+		unban.name = name.shift();
+		if(name.length > 0){
+			unban.extra = _.map(name, function(row){
+				row = row.split(':');
+				return {key: row[0], ip: row[1], name: row[2]};
+			});
+		}
 		return {
 			type: "unblocked",
-			unid: unid,
-			ip: ip,
-			name: name,
-			unbansrc: unbansrc,
-			time: time};
+			unban: unban};
 	},
 	
-	// Test this
+	// Blocklist is overwriting multiple bans, can stay that way.
 	blocklist: function() {
+		if(_.filter(_.toArray(arguments), function(x){ return x; }).length === 0) return {type: "blocklist",bans:{}};
 		var bans = _.reduce(_.toArray(arguments).join(':').split(';'), function(bans, args){
 			args = args.split(':');
+			console.log(args);
 			var ban = makeUser(args[2], "", "", args[0], args[1]);
 			ban.time = parseFloat(args[3]);
 			ban.by = args[4];
@@ -175,10 +196,10 @@ var frameTypesRoom = {
 		if(undefined === name){
 			return {type: "bansearchresult", result: false};
 		}
-		var result = makeUser(name, "", "", key);
-		result.time = Math.round(new Date(date)/1000);
+		var result = makeUser(name, "", "", key, ip);
+		result.time = Math.round(new Date(_.toArray(arguments).slice(5).join(":"))/1000);
 		result.by = by;
-		return {type: "bansearchresult",result: result};
+		return {type: "bansearchresult", result: result};
 	},
 	
 	g_participants: function(){
@@ -200,14 +221,38 @@ var frameTypesRoom = {
 	participant: function(mode, sess, user_id, name, alias, ip, time) {
 		if(name === "None") name = "";
 		if(alias === "None") alias = "";
+		var user = makeUser(name, alias, user_id, "", "");
+		user.time = parseFloat(time);
+		user.sess = sess;
 		return {
 			type: "participant",
-			time: parseFloat(time),
-			sess: sess,
 			mode: ( mode == "0" ? "leave" : mode == "1" ? "join" : mode == "2" ? "change" : undefined ),
-			user: makeUser(name, alias, user_id, "", "")
-		};
-	}
+			user: user};
+	},
+	
+	updateprofile: function(name){
+		return {
+			type: "g_participants",
+			name: name};
+	},
+	
+	getbannedwords: function(partly, exact){
+		return {
+			type: "getbannedwords",
+			partly: _.filter(decodeURIComponent(partly).split(','), function(x){ return x; }),
+			exact: _.filter(decodeURIComponent(exact).split(','), function(x){ return x; })};
+	},
+	
+	bw: function(partly, exact){
+		return {
+			type: "getbannedwords",
+			partly: _.filter(decodeURIComponent(partly).split(','), function(x){ return x; }),
+			exact: _.filter(decodeURIComponent(exact).split(','), function(x){ return x; })};
+	},
+	
+	ubw: function(){
+		return {type: "ubw"};
+	},
 };
 
 var frameTypesPM = {

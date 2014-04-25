@@ -3,11 +3,15 @@
 var _ 	= require('underscore');
 
 // Derplib modules
-var MM = module.parent,
-	utils = MM.libary.load('utils'),
+var MM 			= module.parent,
+	utils 		= MM.libary.load('utils'),
 	eventModule = MM.libary.load('eventModule'),
+	db 			= MM.plugin.load('database'),
 	permissions = MM.plugin.load('permissions');
 
+// data
+var commands = {};
+	
 // Register commands
 MM._data.command = {
 	dir: './commands/',
@@ -19,29 +23,18 @@ MM.command = {
 	load: function(x){ return MM._load(x, 'command') },
 	unload: function(x){ return MM._unload(x, 'command') },
 	reload: function(x){ return MM._reload(x, 'command') },
-	all: function(){ return self._data.command.loaded; },
+	all: function(){ return MM._data.command.loaded; },
 };
-
-var prefixes = ['>'];
-
-exports.setPrefix = function(arr){
-	prefixes = _.isArray(arr) ? arr : [arr];
-}
 
 // Load all commands
 exports.autoLoad = function(){
 	
-	var loadedCommands = [];
-	
 	utils.walkdir('./commands', function(err, result){
 		if(err) throw err;
 		_.each(_.filter(result, function(x){ return x.substr(-3) == ".js"; }), function(cmd){
-			loadedCommands.push(cmd);
 			MM.command.load(cmd);
 		});
 	});
-	
-	console.log("Loaded commands: ", loadedCommands.join(', '));
 	
 	return exports;
 }
@@ -50,7 +43,8 @@ exports.autoLoad = function(){
 function newCommand(args){
 	var commandObject = {
 		key: '',			// Handle key and command word
-		nodes: ['run'],			// For permissions
+		access: false,		// Required access level
+		nodes: ['run'],		// For permissions
 		description: '',	// Text shown for commands in !help (leave empty to not show)
 		// Settings
 		active: true,		// Disable command
@@ -71,9 +65,6 @@ function newCommand(args){
 	};
 	return _.extend(commandObject, args);
 }
-
-// Register commands
-var commands = {};
 
 exports.findCommand = function(args){
 	if(args.length === 0) return false;
@@ -104,18 +95,16 @@ exports.register = function(command){
 	eventModule.emit('event', 'registerCommand', command, function(command){
 		// Register command
 		commands[command.key] = newCommand(command);
-		console.log("Registered command", command.key);
 		// Register nodes
-		permissions.register(command.key, commands[command.key].nodes);
+		//permissions.register(command.key, commands[command.key].nodes);
 	});
 }
 
 exports.registerSubCmd = function(key, command){
-	if(!_.find(commands[key].subcommands, function(x){ return x.key == key; })){
-		command.key = key;
+	if(!key || !command || !_.has(command, 'key') || !_.has(command, 'run')) return false;
+	if(!_.find(commands[key].subcommands, function(x){ return x.key == command.key; })){
 		commands[key].subcommands.push(newCommand(command));
 	}
-	console.log("register subcommand", key);
 }
 
 // Handle requests
@@ -123,7 +112,11 @@ exports.registerSubCmd = function(key, command){
 exports.request = function(args, cb){
 	var req = args[0];
 	
-	var command_regex = new RegExp('^\\s*('+prefixes.join('|')+')([a-z].*)','i');
+	var data = db.get('commands');
+	
+	if(!_.has(data, 'prefixes') || data.prefixes.length == 0) data.prefixes = ['-'];
+	
+	var command_regex = new RegExp('^\\s*(\\'+data.prefixes.join('|\\')+')([a-z].*)','i');
 	var match = command_regex.exec(req.message.text);
 	
 	if(match){ // Prefix matches
@@ -133,21 +126,28 @@ exports.request = function(args, cb){
 		// Find a command
 		var command = exports.findCommand(parts);
 		if(command){
-			if(req.perm && !req.perm('cmd.'+command.key+'.run')){
-				console.log('User '+req.user.name+' does not have perm for cmd.'+command.key+'.run');
-				return;
+			// Add the command 
+			req.message.command = command;
+			if(req.perm){
+				if(req.perm('cmd.'+command.key+'.run')){
+					// Execute command
+					req.message.args = parts;
+					eventModule.emit('event', 'command', command, req, function(){
+						execute(command, req);
+					});
+				}else{
+					console.log('User '+req.user.name+' does not have permission for cmd.'+command.key+'.run');
+				}
+			}else{
+				console.log('Request for '+req.user.name+' did not have perm function');
 			}
-			req.message.args = parts;
-			eventModule.emit('event', 'command', command, req, function(){
-				execute(command, req);
-			});
 		}
 	}
 	
 }
 
 function execute(command, req){
-	console.log("EXECUTE", command.key, req.message.text);
+	console.log("["+req.room.name+"]["+req.user.name+"]["+command.key+']', req.message.args.join(' '));
 	
 	if(!command.active){
 		console.log('['+req.room.name+']['+req.user.name+']['+command.key+'] DENIED, COMMAND INACTIVE');
@@ -169,10 +169,10 @@ function execute(command, req){
 		return;
 	}
 	
-	if(!command.cache.users.hasOwnProperty(req.user.name)) command.cache.users = {lastused:0};
-	if(!command.cache.rooms.hasOwnProperty(req.room.name)) command.cache.rooms = {lastused:0};
+	if(!_.has(command.cache.users, req.user.name)) command.cache.users = {lastused:0};
+	if(!_.has(command.cache.rooms, req.room.name)) command.cache.rooms = {lastused:0};
 	
-	var now = +new Date/1000;
+	var now = new Date/1000;
 	
 	if(!req.room.ispm && command.room_timeout > 0){
 		if(now < (command.cache.rooms[req.room.name].lastused + command.room_timeout)){

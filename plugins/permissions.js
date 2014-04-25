@@ -1,6 +1,7 @@
 "use strict";
 // Require modules
-var colors 	= require('colors'),
+var fs		= require('fs'),
+	colors 	= require('colors'),
 	_		= require('underscore');
 
 var MM 		= module.parent,
@@ -10,13 +11,17 @@ var MM 		= module.parent,
 /////////////////
 // Permissions //
 
-var perms = db.get('permissions');
-var roleObject = {inherits: [],nodes: []};
-
 // Settings
-var defaultRole = false;
 var admins = ['barrykun'];
+var roleObject = {
+	access: 0,
+	inherits: [], // Role names
+	nodes: [] // {node: 'name', grant: true}
+};
 
+// Varables for permissions, stored in data
+var perms = db.get('permissions');
+if(!_.has(perms, 'defaultRole')) perms.defaultRole = false;
 if(!_.has(perms, 'nodes')) perms.nodes = {};
 if(!_.has(perms, 'roles')) perms.roles = {};
 if(!_.has(perms.nodes, 'cmd')) perms.nodes.cmd = {};
@@ -38,31 +43,34 @@ exports.addRole = function(name, role){
 	perms.roles[name] = _.extend(JSON.parse(JSON.stringify(roleObject)), role);
 }
 
-exports.addRole('admin', {
-	nodes: [
-		{ node: '*', grant: true },
-	],
-});
-
 exports.setDefaultRole = function(role){
 	if(_.has(perms.roles, role)){
-		defaultRole = role;
+		perms.defaultRole = role;
 	}
 }
 
+if(fs.existsSync('./roles.js')){
+	require('./roles.js');
+}
+
+exports.getRoles = function(){
+	return perms.roles;
+}
+
 exports.register = function(key, nodes){
-	if(!_.contains(nodes, 'run')){
-		nodes.push('run');
-	}
-	perms.nodes.cmd[key] = nodes;
+	// idk what to do with this yet
 }
 
 exports.request = function(args){
 	var req = args[0];
 	
+	// Data on a user is required
+	if(!req.user.data) return;
+	
 	// Cannot create perm object for user, invalid default role
-	if(!_.has(req.user.data, 'perms') && !_.has(perms.roles, defaultRole)) return false;
-	if(!_.has(req.user.data, 'perms')) req.user.data.perms = {roles: [defaultRole], nodes: []};
+	if(!_.has(req.user.data, 'perms') && !_.has(perms.roles, perms.defaultRole)) return false;
+	if(!_.has(req.user.data, 'perms')) req.user.data.perms = {roles: [perms.defaultRole], nodes: []};
+	if(!_.has(req.user.data, 'access')) req.user.data.access = 0;
 	
 	req.perm = function(node){
 		if(!this.user || !this.user.data.perms) return false;
@@ -71,11 +79,13 @@ exports.request = function(args){
 		
 		var userPerms = this.user.data.perms.nodes;
 		var userRoles = _getRoleInherits(this.user.data.perms.roles);
+		var accessLevels = [req.user.data.access];
 		
 		// Get the nodes from nodename
 		var roleNodes = _.reduce(userRoles, function(list, role){
 			if(!_.has(perms.roles, role)) return list;
 			role = perms.roles[role];
+			accessLevels.push(role.access);
 			list.push.apply(list, role.nodes);
 			return list;
 		},[]);
@@ -104,7 +114,7 @@ exports.request = function(args){
 			return allowed || matchNode(node, perm);
 		}, false);
 		
-		return (allowed === true && denied === false);
+		return ( (allowed === true || Math.max.apply(null,accessLevels) >= req.message.command.access ) && denied === false);
 	}
 }
 

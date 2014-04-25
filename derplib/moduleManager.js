@@ -28,8 +28,6 @@ function ModuleManager() {
 	
 	var self = this;
 	
-	this.loadQueue = [];
-	
 	this.libary = {
 		load: function(x){ return self._load(x, 'libary') },
 		unload: function(x){ return self._unload(x, 'libary') },
@@ -101,7 +99,7 @@ ModuleManager.prototype._load = function(mod, type) {
 	var _mod = this._data[type].loaded[mod] = new module.Module(path);
 	// Set module data
 	_mod.parent = this;
-	_mod.exports.DerpLib = this.DerpLib;
+	_mod.exports.DerpLib = this.parent;
 	_mod.exports.setOrder = function(x){
 		_mod._order = Math.max(0, x);
 		return _mod.exports;
@@ -122,21 +120,22 @@ ModuleManager.prototype._load = function(mod, type) {
 	// Unload //
 
 ModuleManager.prototype._unload = function(mod, type) {
-	if(this._data[type].prot.indexOf(mod) != -1)
+	if(~_.indexOf(this._data[type].prot, mod))
 		return false;
 	
-	var path = this._data[type].dir+mod+'.js';
-	
-	if(this._data[type].loaded.hasOwnProperty(path))
-		delete this._data[type].loaded[path];
+	if(_.has(this._data[type].loaded, mod)){
+		delete this._data[type].loaded[mod];
+		return true;
+	}
 };
 
 	////////////
 	// Reload //
 
 ModuleManager.prototype._reload = function(mod, type) {
-	this.unload(mod, type);
-	return this.load(mod, type);
+	if(this._unload(mod, type)){
+		return this._load(mod, type);
+	}
 };
 
 ModuleManager.prototype.setParent = function(_parent) {

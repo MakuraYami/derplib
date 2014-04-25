@@ -115,6 +115,13 @@ PM.prototype._onAuth = function(){
 	
 	this._sock.on('error', function(exception) {
 		console.log(('['+self.name+'] Socket ERROR:').bold.red, exception);
+		if(exception.errno == 'ECONNREFUSED'){
+			if(self._sock._port == 5222){
+				self._sock._port = 443;
+			}else if(self._sock._port == 443){
+				self._sock._port = 5222;
+			}
+		}
 	});
 	
 	this._sock.on('timeout', function(exception) {
@@ -278,8 +285,9 @@ PM.prototype.reconnect = function(){
 }
 
 PM.prototype.write = function(args) {
-	if(!this._writeLock)
-		this._sock.write(args);
+	if(!this._writeLock){
+		this._sock.write(_.isArray(args) ? args : _.toArray(arguments));
+	}
 }
 
 PM.prototype.message = function(name, body) {
@@ -304,6 +312,10 @@ PM.prototype.font = function(size, color, face) {
 	color = color || this._settings.textColor;
 	face = face || this._settings.textFont;
 	return '<g x'+size+'s'+color+'="'+face+'">';
+}
+
+PM.prototype.addFriend = function(name){
+	this.write('wladd', name);
 }
 
 PM.prototype.updateProfile = function(fields){

@@ -9,9 +9,9 @@ var MM 		   = module.parent,
  
 commands.register({
 	key: 'e',
+	access: 10,
 	run: function(req){
 		try{
-			console.log(req.message.args.join(' '));
 			var result = eval(req.message.args.join(' '));
 			req.write('Eval: '+result);
 		}catch(e){

@@ -10,6 +10,7 @@ var util 		= require('util'),
 	colors 		= require('colors');
 
 var MM = module.parent,
+	DerpLib = MM.parent,
 	socket 	= MM.libary.load('socket'),
 	weights = MM.libary.load('weights'),
 	utils 	= MM.libary.load('utils'),
@@ -38,37 +39,47 @@ function Room(options) {
 	this._account = options.account || false;
 	this._accountLC = this._account ? this._account.toLowerCase() : false;
 	this._password = options.password || false;
-	this._maxConTime = 0;
 	this._loggedIn = false;
 	this._uid = options.uid || utils.genUid();
 	this._user_id = String(this._uid).substr(0, 8);
 	this._host = options.host || weights.getServerHost(this.name);
 	this._writeLock = false;
-	this._g_participants = true;
 	this._isAdmin = false;
 	this._isModerator = false;
-	this._consoleFilter = ['i', 'b', 'u', 'n', 'g_participants', 'participant', 'premium'];
 	this._messages = [];
 	this._bans = {};
-	this._bannedWordsPartly = []
+	this._bannedWordsPartly = [];
 	this._bannedWordsExact = [];
-	this._autoReconnect = options.reconnect || true;
-	this._reconnectDelay = 5;
 	this._settings = {
+		type: 'room',
+		active: true,
+		blocked: false,
+		autoReconnect: options.reconnect || true,
+		reconnectDelay: 5,
+		consoleFilter: ['i', 'b', 'u', 'n', 'g_participants', 'participant', 'premium'],
+		g_participants: true,
+		maxConTime: 0,
 		useBackground: true,
 		useRecording: false,
 		nameColor: '000',
 		textSize: '13',
-		textColor: '000',
+		textColor: 'F00',
 		textFont: '8',
 	};
 	
 	var self = this;
 	
-	eventModule.emit("event", "newroom", this.name, function(settings){
-		if(_.isObject(settings))
-			self._settings = _.extend(self._settings, settings);
-			
+	eventModule.emit("event", "newRoom", this, function(){
+		// May not be changed
+		self._settings.type = 'room';
+		
+		if(self._settings.blocked){
+			console.log('['+self.name+'] This room is blocked, aborting join.');
+			return;
+		}
+		
+		self._settings.active = true;
+		
 		self._sock = new socket.Instance( self._host );
 		self._onAuth();
 	});
@@ -87,6 +98,11 @@ Room.prototype._onAuth = function(){
 	
 	this._sock.on('onconnect', function() {
 		
+		if(!self._settings.active){
+			self.disconnect();
+			return;
+		}
+		
 		if(self._account)
 			self.write(['bauth', self.name, self._uid, self._account, self._password]);
 		else
@@ -94,10 +110,10 @@ Room.prototype._onAuth = function(){
 		
 		self._sock.setWriteLock(true);
 		
-		if(this._maxConTime){
+		if(self._settings.maxConTime){
 			setTimeout(function(){
 				self.reconnect();
-			}, this._maxConTime * 1000);
+			}, self._settings.maxConTime * 1000);
 		}
 		
 	});
@@ -111,11 +127,11 @@ Room.prototype._onAuth = function(){
 	});
 	
 	this._sock.on('close', function() {
-		if(self._autoReconnect){
+		if(self._settings.autoReconnect){
 			console.log(('['+self.name+'] Socket closed, reconnecting...').bold.red);
 			setTimeout(function(){
 				self._sock.connect();
-			}, self._reconnectDelay * 1000);
+			}, self._settings.reconnectDelay * 1000);
 		}else{
 			console.log(('['+self.name+'] Socket closed, reconnect is off').bold.red);
 		}
@@ -127,7 +143,7 @@ Room.prototype._onAuth = function(){
 		
 		var args = data.split(':');
 		
-		if(self._consoleFilter.indexOf(args[0]) == -1 && self._consoleFilter.indexOf('all') == -1)
+		if(self._settings.consoleFilter.indexOf(args[0]) == -1 && self._settings.consoleFilter.indexOf('all') == -1)
 			console.log('['+self.name+']', data);
 		
 		var _frame = frame.parseFrameRoom(data);
@@ -152,7 +168,7 @@ Room.prototype._onAuth = function(){
 	
 	this.on('frame_denied', function(_frame){
 		console.log(('['+this.name+'] Socket connection denied!').bold.red);
-		this._autoReconnect = false;
+		this._settings.autoReconnect = false;
 		this.disconnect();
 	});
 	
@@ -163,42 +179,25 @@ Room.prototype._onAuth = function(){
 		
 		if(this._account && !this._loggedIn){
 			console.log(('['+this.name+'] Login Failed!').bold.red);
-			this._autoReconnect = false;
+			this._settings.autoReconnect = false;
 			this.disconnect();
 			return;
 		}
 		
 		self.admin = _frame.owner;
 		self.mods = _frame.mods;
-		
-		if(self.admin == self._accountLC) {
-			self._isAdmin = true;
-		}
-		
-		if(self.mods.indexOf(self._accountLC) != -1 || self._isAdmin) {
-			self._isModerator = true;
-		}
+		self.checkModStatus();
 	});
 	
 	this.on('frame_pwdok', function(_frame) {
 		self._loggedIn = true;
 		self.write(['getpremium', '1']);
-		if(self.admin == self._accountLC) {
-			self._isAdmin = true;
-		}else{
-			self._isAdmin = false;
-		}
-		if(self.mods.indexOf(self._accountLC) != -1 || self._isAdmin) {
-			self._isModerator = true;
-		}else{
-			self._isModerator = false;
-		}
+		self.checkModStatus();
 		self.emit('loggedin');
 	});
 	
 	this.on('frame_logoutok', function(_frame) {
 		self._loggedIn = false;
-		self._account = false;
 		self.emit('logout');
 	});
 	
@@ -221,12 +220,20 @@ Room.prototype._onAuth = function(){
 		var req = new request.make(self);
 		req.parseMessage(_frame);
 		
-		eventModule.emit('event', 'RoomOffMsg', req);
-		
 		self._messages.push(req.message);
 		if(self._messages.length > 100)
 			self._messages.shift();
 		
+		var users = _.filter(self.users, function(user){ return user.id == req.user.id; });
+		_.each(users, function(user){
+			if(req.user.key) user.key = req.user.key;
+			if(req.user.ip) user.ip = req.user.ip;
+		});
+		if(users.length === 0){
+			self.users[req.user.id] = req.user;
+		}
+		
+		eventModule.emit('event', 'RoomOffMsg', req);
 	});
 	
 	this.on('frame_b', function(_frame) {
@@ -236,24 +243,29 @@ Room.prototype._onAuth = function(){
 		// Parse Message
 		req.parseMessage(_frame);
 		
+		self._messages.push(req.message);
+		if(self._messages.length > 100)
+			self._messages.shift();
+			
+		var users = _.filter(self.users, function(user){ return user.id == req.user.id; });
+		_.each(users, function(user){
+			user.name = req.user.name;
+			if(req.user.key) user.key = req.user.key;
+			if(req.user.ip) user.ip = req.user.ip;
+		});
+		if(users.length === 0){
+			console.log('['+req.room.name+'] Error: could not find user id in user list for ', req.user.name);
+		}
+		
 		// Don't reply to self
 		if(req.room._user_id == req.user.id) return;
 		
 		eventModule.emit('event', 'request', req);
-		
-		self._messages.push(req.message);
-		if(self._messages.length > 100)
-			self._messages.shift();
 	});
 	
 	this.on('frame_u', function(_frame) {
-		for(var i=self._messages.length-1; i>=0; i--){
-			if(self._messages[i].number == _frame.number){
-				if(_frame.msgid.length == 16)
-					self._messages[i].id = _frame.msgid;
-				break;
-			}
-		}
+		var msg = _.find(self._messages, function(msg){ return msg.number == _frame.number; });
+		if(msg) msg.id = _frame.msgid;
 	});
 	
 	///////////////
@@ -264,27 +276,34 @@ Room.prototype._onAuth = function(){
 	});
 	
 	this.on('frame_g_participants', function(_frame) {
-		self.users = _frame.users;
-		if(!self._g_participants)
+		_.each(_frame.users, function(user){
+			if(_.has(self.users, user.id)){
+				self.users[user.sess] = _.extend(user, self.users[user.id]);
+				delete self.users[user.id];
+			}else{
+				self.users[user.sess] = user;
+			}
+		});
+		if(!self._settings.g_participants)
 			self.write(['g_participants', 'stop']);
 	});
 	
 	this.on('frame_participant', function(_frame) {
 		if(_frame.mode == 'leave'){
-			if(_.has(self.users, _frame.sess))
-				delete self.users[_frame.sess];
+			if(_.has(self.users, _frame.user.sess))
+				delete self.users[_frame.user.sess];
 		}
 		else if(_frame.mode == 'join'){
-			if(!_.has(self.users, _frame.sess))
-				 self.users[_frame.sess] = _frame;
+			if(!_.has(self.users, _frame.user.sess))
+				 self.users[_frame.user.sess] = _frame.user;
 		}
 		else if(_frame.mode == 'change'){
 			//log in or out
-			self.users[_frame.sess] = _frame;
+			self.users[_frame.user.sess] = _frame.user;
 			if(undefined === _frame.user.name){
-				eventModule.emit('event', 'userLogout', _frame);
+				eventModule.emit('event', 'userLogout', _frame.user);
 			}else{
-				eventModule.emit('event', 'userLogin', _frame);
+				eventModule.emit('event', 'userLogin', _frame.user);
 			}
 		}
 	});
@@ -298,119 +317,101 @@ Room.prototype._onAuth = function(){
 		}
 	});
 	
-	this.on('frame_show_fw', function(args) {
+	this.on('frame_show_fw', function() {
 		console.log(('['+self.name+'] Flood warning. Going in lockdown').bold.red);
 		self._writeLock = true;
 		self.emit('start_fw');
-		/*
 		setTimeout(function(){
-			//raw write to bypass lock
 			self._writeLock = false;
-			self.write(['bmsg', 'l33t', '<n'+self._settings.nameColor+'/>' + self._fontf() + 'Going in pause for flood warning.']);
-			self._writeLock = true;
-		}, 5000);*/
+		}, 15000);
 	});
 	
-	this.on('frame_end_fw', function(args) {
+	this.on('frame_end_fw', function() {
 		self._writeLock = false;
 		self.emit('end_fw');
 	});
 	
-	this.on('frame_show_tb', function() {
+	this.on('frame_show_tb', function(_frame) {
 		// 15 minutes, result of flooding
-		self.emit('start_tempban');
+		self.emit('show_tempban', _frame.seconds);
 	});
 	
-	this.on('frame_tb', function(args){
-		self.emit('tempban', args);
+	this.on('frame_tb', function(_frame){
+		self.emit('tempban', _frame.time);
 	});
 	
-	this.on('frame_clearall', function(){
-		if(args[0] == 'ok'){
-			for(var i=0; i<self.messages.length; i++){
-				self.messages[i].deleted = true;
-			}
-			self.emit('clearall', args);
+	this.on('frame_clearall', function(_frame){
+		if(_frame.answer == 'ok'){
+			_.each(self.messages, function(message){
+				message.deleted = true;
+			});
+			self.emit('clearall');
 		}
 	});
 	
-	this.on('frame_delete', function(args){
-		var msg = _.find(self.messages, function(x){ return (x.id == args[0]); });
-		msg.deleted = true
-		self.emit('message_delete', msg);
+	this.on('frame_delete', function(_frame){
+		var msg = _.find(self._messages, function(x){ return (x.id == _frame.msgid); });
+		if(msg){
+			msg.deleted = true;
+			self.emit('messageDeleted', msg);
+		}
 	});
 	
-	this.on('frame_updateprofile', function(args) {
-		self.emit('profileupdate', args[0]);
+	this.on('frame_deleteall', function(_frame){
+		_.each(_frame.msgids, function(msgid){
+			var msg = _.find(self._messages, function(x){ return (x.id == _frame.msgid); });
+			if(msg){
+				msg.deleted = true;
+			}
+		});
 	});
 	
-	this.on('frame_mods', function(args) {
-		self.mods = args;
-		var added = _.find(args, function(x){ return self.mods.indexOf(x) >= 0; });
+	this.on('frame_updateprofile', function(_frame) {
+		self.emit('profileupdate', _frame.name);
+	});
+	
+	this.on('frame_mods', function(_frame) {
+		self.mods = _frame.mods;
+		var added = _.find(args, function(x){ return self.mods.indexOf(x) > -1; });
 		var removed = _.find(self.mods, function(x){ return args.indexOf(x) < 0; });
 		
 		if(added){
 			self.emit('mod_added', added);
 		}else if(removed){
-			self.emit('mod_removed', added);
+			self.emit('mod_removed', removed);
 		}
+		self.checkModStatus();
 	});
 	
-	this.on('frame_blocklist', function(args) {
-		var bans = args.join(':').split(';');
-		_.each(bans, function(ban){
-			var banargs = ban.split(':');
-			var ban = {
-				id: banargs[0],
-				ip: banargs[1],
-				username: banargs[2],
-				time: banargs[3],
-				by: banargs[4]
-			};
-			self._bans[ban.username] = ban;
-		});
+	this.on('frame_blocklist', function(_frame) {
+		self._bans = _frame.bans;
 	});
 	
-	this.on('frame_blocked', function(args) {
-		var ban = {
-			id: args[0],
-			ip: args[1],
-			username: args[2],
-			by: args[3],
-			time: args[4]
-		};
-		self._bans[ban.username] = ban;
-		self.emit('ban', ban);
+	this.on('frame_blocked', function(_frame) {
+		self._bans[_frame.ban.name] = _frame.ban;
+		self.emit('ban', _frame.ban);
 	});
 	
-	this.on('frame_unblocked', function(args) {
-		var unban = {
-			id: args[0],
-			ip: args[1],
-			username: args[2],
-			banner: args[3],
-			time: args[4]
-		};
-		delete self._bans[unban.username];
-		self.emit('unban', unban);
+	this.on('frame_unblocked', function(_frame) {
+		delete self._bans[_frame.unban.name];
+		self.emit('unban', _frame.unban);
 	});
 	
-	this.on('frame_bansearchresult', function(args) {
-		
+	this.on('frame_bansearchresult', function(_frame) {
+		self.emit('banSearchResult', _frame.result);
 	});
 	
-	this.on('frame_getbannedwords', function(args) {
-		self._bannedWordsPartly = _.filter(decodeURIComponent(args[1]).split(','), function(x){ return x; });
-		self._bannedWordsExact = _.filter(decodeURIComponent(args[2]).split(','), function(x){ return x; });
+	this.on('frame_getbannedwords', function(_frame) {
+		self._bannedWordsPartly = _frame.partly;
+		self._bannedWordsExact = _frame.exact;
 	});
 	
-	this.on('frame_bw', function(args) {
-		self._bannedWordsPartly = _.filter(decodeURIComponent(args[1]).split(','), function(x){ return x; });
-		self._bannedWordsExact = _.filter(decodeURIComponent(args[2]).split(','), function(x){ return x; });
-		self.emit('bannedwords');
+	this.on('frame_bw', function(_frame) {
+		self._bannedWordsPartly = _frame.partly;
+		self._bannedWordsExact = _frame.exact;
 	});
 	
-	this.on('frame_ubw', function(args) {
+	this.on('frame_ubw', function() {
 		self.getBannedWords();
 	});
 	
@@ -431,18 +432,24 @@ Room.prototype.connect = function(){
 }
 
 Room.prototype.disconnect = function() {
-	if(this._sock._connected)
+	this._settings.active = false;
+	this._settings.autoReconnect = false;
+	if(this._sock._connected){
 		this._sock.disconnect();
+	}
 }
 
 Room.prototype.reconnect = function(){
-	if(this._sock._connected)
-		this._sock.reconnect();
+	if(this._sock._connected){
+		this._settings.autoReconnect = true;
+		this._sock.disconnect();
+	}
 }
 
 Room.prototype.write = function(args) {
-	if(!this._writeLock)
-		this._sock.write(args);
+	if(!this._writeLock){
+		this._sock.write(_.isArray(args) ? args : _.toArray(arguments));
+	}
 }
 
 Room.prototype.message = function(body) {
@@ -451,40 +458,24 @@ Room.prototype.message = function(body) {
 	
 	var self = this;
 	
-	body = String(body).replace(/[\n\r]/, '');
-	
 	if(_.isArray(body)){
 		//Multi-line message
 		var output = _.reduce(body, function(output, msg, i){
-			return output += self.font() + msg + '</f></p>' + (i == body.length-1 ? '' : '<p>');
+			return output += self.font() + String(msg) + '</f></p>' + (i == body.length-1 ? '' : '<p>');
 		}, '');
 		
-		_.each(output.match(/(.|[\r\n]){1,2950}/gm), function(msg){
-			self.write(['bmsg', 'l33t', '<n'+self._settings.nameColor+'/>'+msg]);
+		output = output.replace(/(\n\r|\r\n|\n|\r|\0)/g, '<br/>');
+		_.each(output.match(/.{1,2950}/gm), function(msg){
+			self.write('bmsg', 'l33t', '<n'+self._settings.nameColor+'/>'+msg);
 		});
 	}
 	else{
-		_.each(body.match(/(.|[\r\n]){1,2950}/gm), function(msg){
-			self.write(['bmsg', 'l33t', '<n'+self._settings.nameColor+'/>' + self.font() + msg]);
+		body = String(body).replace(/(\n\r|\r\n|\n|\r|\0)/g, '<br/>');
+		_.each(body.match(/.{1,2950}/gm), function(msg){
+			self.write('bmsg', 'l33t', '<n'+self._settings.nameColor+'/>' + self.font() + msg);
 		});
 	}
 };
-
-Room.prototype.userTime = function(user, cb){
-	var pm = _.find(MM.parent._data.pms, function(pm){
-		return pm._sock && pm._sock._connected;
-	});
-	if(pm){
-		console.log("Found PM, connecting to user");
-		pm.connectChat(user);
-		eventModule.once('PmChatOpen', function(frame){
-			pm.disconnectChat(user);
-			cb(frame);
-		});
-	}else{
-		cb(false);
-	}
-}
 
 // Chatango functions
 
@@ -496,6 +487,11 @@ Room.prototype.login = function(){
 Room.prototype.logout = function(){
 	if(this._loggedIn)
 		this.write(['blogout']);
+}
+
+Room.prototype.checkModStatus = function(){
+	this._isAdmin = (this.admin == this._accountLC);
+	this._isModerator = (this.mods.indexOf(this._accountLC) != -1 || this._isAdmin);
 }
 
 Room.prototype.addMod = function(name) {
@@ -520,7 +516,22 @@ Room.prototype.flag = function(message) {
 	}
 }
 
-Room.prototype.delmsg = function(message) {
+Room.prototype.userTime = function(user, cb){
+	var pm = _.find(MM.parent._data.pms, function(pm){
+		return pm._sock && pm._sock._connected;
+	});
+	if(pm){
+		pm.connectChat(user);
+		eventModule.once('PmChatOpen', function(frame){
+			pm.disconnectChat(user);
+			cb(frame);
+		});
+	}else{
+		cb(false);
+	}
+}
+
+Room.prototype.del = function(message) {
 	if(this._isModerator){
 		if(message.id){
 			this.write(['delmsg', message.id]);
@@ -532,7 +543,7 @@ Room.prototype.delmsg = function(message) {
 					clearInterval(inter);
 				}
 				if(message.id){
-					this.write(['delmsg', message.id]);
+					self.write(['delmsg', message.id]);
 					clearInterval(inter);
 				}
 				count++;
@@ -541,36 +552,79 @@ Room.prototype.delmsg = function(message) {
 	}
 }
 
-Room.prototype.clearUser = function(message) {
+Room.prototype.delLast = function(amount) {
+	amount = Math.max(amount, 1) || 1;
+	var self = this;
+	_.each(self._messages.slice(-amount), function(message){
+		self.del(message);
+	});
+}
+
+Room.prototype.delUser = function(name) {
 	if(this._isModerator){
-		this.write(['delallmsg', message.uid]);
+		var msg = _.find(this._messages.reverse(), function(msg){
+			return !msg.deleted && msg.name == name.toLowerCase();
+		});
+		if(msg) this.del(msg);
 	}
 }
 
-Room.prototype.clearall = function() {
+Room.prototype.clearUser = function(name) {
+	if(this._isModerator){
+		var self = this;
+		_.each(this.users, function(user){
+			if(user.name == name.toLowerCase() && user.key)
+				self.write(['delallmsg', user.key]);
+		});
+	}
+}
+
+Room.prototype.modClearAll = function() {
+	if(this._isAdmin){
+		var self = this;
+		_.each(this.users, function(user){
+			if(user.key) self.write(['delallmsg', user.key]);
+		});
+	}
+}
+
+Room.prototype.clearAll = function() {
 	if(this._isAdmin){
 		this.write(['clearall']);
 	}
 }
 
-Room.prototype.ban = function(user) {
+Room.prototype.ban = function(name) {
 	if(this._isModerator) {
-		if(user.key && user.ip && user.name)
-			this.write(['block', user.key, user.ip, user.name]);
+		var self = this;
+		_.each(this.users, function(user){
+			if(user.key && user.ip && user.name && user.name == name.toLowerCase())
+				self.write(['block', user.key, user.ip, user.name]);
+		});
 	}
 }
 
-Room.prototype.unban = function(user) {
+Room.prototype.unban = function(name) {
 	if(this._isModerator) {
-		if(this._bans[user.name]){
-			this.write(['removeblock', this.bans[user.name].id, this.bans[user.name].ip]); 
+		var ban = this._bans[name.toLowerCase()];
+		if(ban){
+			this.write(['removeblock', ban.key, ban.ip, ban.name]); 
 		}
 	}
 }
 
-Room.prototype.requestBanlist = function() {
+Room.prototype.getBans = function() {
 	if(this._isModerator){
-		this.write(['blocklist', 'block', '',  'next', '500']); //, 'anons', '1'
+		// Suffix 'anons', '1' is default behaviour - use 'anons', '0' to hide anons
+		// 3th argument is optional timestamp showing bans after that time used for pagination
+		this.write(['blocklist', 'block', '',  'next', '500']);
+	}
+}
+
+Room.prototype.getUnbans = function() {
+	if(this._isModerator){
+		// Suffix same as requestBanlist
+		this.write(['blocklist', 'unblock', '',  'next', '500']);
 	}
 }
 

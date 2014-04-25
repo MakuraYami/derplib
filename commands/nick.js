@@ -6,6 +6,7 @@ var MM 		   = module.parent,
  
 commands.register({
 	key: 'nick',
+	access: 1,
 	run: function(req){
 		if(req.message.args.length > 0){
 			req.user.data.nickname = req.message.args[0];
