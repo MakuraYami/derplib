@@ -346,6 +346,7 @@ Room.prototype._onAuth = function(){
 		if(_frame.answer == 'ok'){
 			_.each(self.messages, function(message){
 				message.deleted = true;
+				eventModule.emit('messageDeleted', message, this);
 			});
 			eventModule.emit('clearall', this);
 		}
