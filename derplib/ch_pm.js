@@ -49,7 +49,7 @@ function PM(options) {
 	
 	var self = this;
 	
-	eventModule.emit("event", "newpm", this._account, function(settings){
+	eventModule.emit("event", "newpm", this, function(settings){
 		if(_.isObject(settings))
 			self._settings = _.extend(self._settings, settings);
 		self.login();
