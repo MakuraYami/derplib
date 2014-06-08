@@ -175,11 +175,11 @@ exports.request = function(args){
 		req.user.data = memory.data.users[req.user.name];
 	}
 	
-	if(!_.has(memory.data.rooms, req.room.name) && false === req.room.ispm) memory.data.rooms[req.room.name] = {};
-	if(false === req.room.ispm) req.room.data = memory.data.rooms[req.room.name];
+	if(!_.has(memory.data.rooms, req.room.name) && !req.room.ispm) memory.data.rooms[req.room.name] = {};
+	if(!req.room.ispm) req.room.data = memory.data.rooms[req.room.name];
 	
-	if(!_.has(memory.data.pms, req.room._accountLC) && true === req.room.ispm) memory.data.pms[req.room._accountLC] = {};
-	if(true === req.room.ispm) req.room.data = memory.data.pms[req.room._accountLC];
+	if(!_.has(memory.data.pms, req.room._accountLC) && req.room.ispm) memory.data.pms[req.room._accountLC] = {};
+	if(req.room.ispm) req.room.data = memory.data.pms[req.room._accountLC];
 	
 	if(!_.has(cache.users, req.user.name)) cache.users[req.user.name] = {};
 	req.user.cache = cache.users[req.user.name];
