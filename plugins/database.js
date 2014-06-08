@@ -8,86 +8,162 @@ var MM = module.parent,
 	utils = MM.libary.load('utils'),
 	saving = MM.libary.load('saving');
 
-var data = false;
+// Data storage
+var memory = {data: false};
+var cache = {users: {}, rooms: {}, commands: {}, pms: {}};
 
+// Check if the data directory exists, if not make it
 if(!fs.existsSync('./data')){
 	fs.mkdirSync('./data');
 }
 
 // Loading
-new saving.file('./data/db.json').load().unzip().get(function(_data){
+new saving.file('./data/data.json').load().unzip().get(function(_data){
 	console.log("[DB] Loaded");
-
-	data = _.isObject(_data) ? _data : {};
 	
-	if(!_.has(data, 'accounts')) data.accounts = {};
-	if(!_.has(data, 'users')) data.users = {};
-	if(!_.has(data, 'rooms')) data.rooms = {};
-	if(!_.has(data, 'commands')) data.commands = {};
-	if(!_.has(data, 'permissions')) data.permissions = {};
+	// Set loaded data in memory
+	memory.data = _.isObject(_data) ? _data : {};
 	
-	_.each(data.rooms, function(room, name){
+	// Check for required keys
+	_.each(['accounts', 'users', 'rooms', 'commands', 'permissions', 'files'], function(key){
+		if(!_.has(memory.data, key)) memory.data[key] = {};
+	});
+	
+	// Load all files
+	_.each(memory.data.files, function(file){
+		new saving.file('./data/'+file+'.json').load().unzip().get(function(_data){
+			memory[file] = _data;
+		});
+	});
+	
+	// Join active rooms
+	_.each(memory.data.rooms, function(room, name){
 		if(room.settings.active && room.settings.type == 'room'){
 			MM.parent.Room({room: name});
 		}
 	});
 	
+	// Saving
+	setInterval(function(){
+		exports.save();
+	}, 60 * 1000);
+	
+	// Finished
 	exports.done();
 });
 
-// Saving
-
-setInterval(function(){
-	exports.save();
-}, 60 * 1000);
-
 // Database commands
 
-exports.get = function(query, _default){
+exports.get = function(query, db, _default){
+	db = db || 'data';
 	if(~_.indexOf(query, '.')){
 		var path = query.split('.');
-		var result = data;
-		_.each(path, function(part){
-			if(result && _.has(result, part)) result = result[part];
-			else result = _default || false;
-		});
-		return result;
-	}else{
-		return _.has(data, query) ? data[query] : _default || false;
-	}
-}
-
-exports.set = function(query, value){
-	if(~_.indexOf(query, '.')){
-		var path = query.split('.');
-		var result = data;
+		var result = memory[db];
 		_.each(path, function(part){
 			if(result && _.has(result, part)) result = result[part];
 			else result = _default || undefined;
 		});
-		if(result) result = value;
 		return result;
+	}else if(query === ''){
+		return memory[db] ? memory[db] : _default || undefined;
 	}else{
-		var result = _.has(data, query) ? data[query] : _default || undefined;
-		if(result) result = value;
-		return result;
+		return _.has(memory[db], query) ? memory[db][query] : _default || undefined;
+	}
+}
+
+exports.set = function(query, value, db){
+	db = db || 'data';
+	if(~_.indexOf(query, '.')){
+		var path = query.split('.');
+		var last = path.pop();
+		var result = memory[db];
+		_.each(path, function(part){
+			if(result && _.has(result, part)) result = result[part];
+			else result = undefined;
+		});
+		if(result && (_.has(result, last) || _.isObject(result))){
+			result[last] = value;
+			return result[last];
+		}
+		else return undefined;
+	}else{
+		if(_.has(memory[db], query)){
+			memory[db][query] = value;
+			return memory[db][query];
+		}
+		else return undefined;
+	}
+}
+
+exports.create = function(query, value, db){
+	db = db || 'data';
+	value = value || {};
+	if(~_.indexOf(query, '.')){
+		var path = query.split('.');
+		var last = path.pop();
+		var result = memory[db];
+		_.each(path, function(part){
+			if(!_.has(result, part)) result[part] = {};
+			result = result[part];
+		});
+		if(!_.has(result, last)){
+			result[last] = value;
+			return result[last];
+		}
+		else return undefined;
+	} else {
+		if(query === ''){
+			memory[db] = value;
+			return memory[db];
+		}if(!_.has(memory[db], query)){
+			memory[db][query] = value;
+			return memory[db][query];
+		}
+		else return undefined;
 	}
 }
 
 exports.save = function(cb){
-	if(data) new saving.file('./data/db.json').put(data).zip().save(cb);
+	var complete = 0;
+	_.each(memory, function(_data, key){
+		if(_data){
+			new saving.file('./data/'+key+'.json').put(_data).zip().save(function(){
+				complete++;
+				checkComplete();
+			});
+		}
+	});
+	function checkComplete(){
+		if(cb && complete == _.size(memory)) cb();
+	}
 }
 
 // Plugin events
 
 exports.newRoom = function(args){
 	var room = args[0];
-	if(!_.has(data.rooms, room.name)){
-		data.rooms[room.name] = {settings:{}};
+	if(!_.has(memory.data.rooms, room.name)){
+		memory.data.rooms[room.name] = {settings:{}};
 	}
-	data.rooms[room.name].settings = _.extend(room._settings, data.rooms[room.name].settings);
-	room._settings = data.rooms[room.name].settings;
-	room.data = data.rooms[room.name];
+	memory.data.rooms[room.name].settings = _.extend(room._settings, memory.data.rooms[room.name].settings);
+	room._settings = memory.data.rooms[room.name].settings;
+	room.data = memory.data.rooms[room.name];
+	
+	if(!_.has(cache.rooms, room.name)) cache.rooms[room.name] = {};
+	room.cache = cache.rooms[room.name];
+}
+
+exports.newpm = function(args){
+	var PM = args[0];
+	if(!_.has(memory.data.pms, PM._accountLC)){
+		memory.data.pms[PM._accountLC] = {settings:{}};
+	}
+	memory.data.pms[PM._accountLC].settings = _.extend(PM._settings, memory.data.pms[PM._accountLC].settings);
+	PM._settings = memory.data.pms[PM._accountLC].settings;
+	PM.data = memory.data.pms[PM._accountLC];
+	
+	if(!_.has(cache.pms, PM._accountLC)) cache.pms[PM._accountLC] = {};
+	PM.cache = cache.pms[PM._accountLC];
 }
 
 exports.request = function(args){
@@ -95,18 +171,40 @@ exports.request = function(args){
 	
 	// Create user data
 	if(req.user.type == 'user'){
-		if(!_.has(data.users, req.user.name)) data.users[req.user.name] = {};
-		req.user.data = data.users[req.user.name];
+		if(!_.has(memory.data.users, req.user.name)) memory.data.users[req.user.name] = {};
+		req.user.data = memory.data.users[req.user.name];
 	}
 	
-	if(!_.has(data.rooms, req.room.name)) data.rooms[req.room.name] = {};
-	req.room.data = data.rooms[req.room.name];
+	if(!_.has(memory.data.rooms, req.room.name) && !req.room.ispm) memory.data.rooms[req.room.name] = {};
+	if(!req.room.ispm) req.room.data = memory.data.rooms[req.room.name];
+	
+	if(!_.has(memory.data.pms, req.room._accountLC) && req.room.ispm) memory.data.pms[req.room._accountLC] = {};
+	if(req.room.ispm) req.room.data = memory.data.pms[req.room._accountLC];
+	
+	if(!_.has(cache.users, req.user.name)) cache.users[req.user.name] = {};
+	req.user.cache = cache.users[req.user.name];
 }
 
 exports.registerCommand = function(args){
-	var key = args[0];
-	var command = args[1];
+	var command = args[0];
+	if(!_.has(cache.commands, command.key)) cache.commands[command.key] = {users: {},rooms: {},global: {}};
+	command.cache = cache.commands[command.key];
 	// Edit command.settings
-	if(_.has(data.commands, key))
-		command.settings = data.commands[key];
+	if(_.has(memory.data.commands, command.key)){
+		command = _.extend(command, memory.data.commands[command.key]);
+	}
+}
+
+exports.addFile = function(file){
+	if(!_.has(memory, file)){
+		new saving.file('./data/'+file+'.json').load().unzip().get(function(_data){
+			if(_data){
+				memory[file] = _data;
+			}else{
+				memory[file] = {};
+			}
+		});
+	}
+	if(!_.has(memory.data, 'files')){exports.create('files', []);}
+	if(-1 === memory.data.files.indexOf(file)){ memory.data.files.push(file);}
 }
