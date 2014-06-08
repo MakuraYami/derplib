@@ -30,28 +30,31 @@ function PM(options) {
 	this.contacts = {};
 	this.blocklist = [];
 	this._account = options.account || false;
+	this._accountLC = this._account ? this._account.toLowerCase() : false;
 	this._password = options.password || false;
 	this._loggedIn = false;
 	this._authid = false;
 	this._writeLock = false;
-	this._consoleFilter = ['premium', 'msg'];
 	this._messages = [];
 	this._sock = false;
-	this._autoReconnect = options.reconnect || true;
 	this._settings = {
+		type: 'pm',
+		autoReconnect: options.reconnect || true,
+		consoleFilter: ['premium', 'msg'],
+		reconnectDelay: 5,
 		useBackground: true,
 		useMedia: false,
-		nameColor: 'CFF',
-		textSize: '13',
-		textColor: 'f00',
-		textFont: '9',
+		nameColor: 'C1B14F',
+		textSize: '12',
+		textColor: '788AB8',
+		textFont: '2',
 	};
 	
 	var self = this;
 	
-	eventModule.emit("event", "newpm", this._accountLC, function(settings){
-		if(_.isObject(settings))
-			self._settings = _.extend(self._settings, settings);
+	eventModule.emit("event", "newpm", this, function(){
+		// May not be changed
+		self._settings.type = 'pm';
 		self.login();
 	});
 	
@@ -65,13 +68,13 @@ PM.prototype.login = function(){
 	
 	this.authenticate(function(result){
 		if(result){
-			console.log('[PM] Session is authenticated');
+			console.log('[PM]['+self._account+'] Session is authenticated');
 			self._authid = result;
 			self._sock = new socket.Instance('c1.chatango.com',	5222);
 			self._onAuth();
 			eventModule.emit("_PMLoggedIn");
 		} else {
-			console.log('[PM] Session failed to authenticate');
+			console.log('[PM]['+self._account+'] Session failed to authenticate');
 			eventModule.emit("_PMLoginFail");
 		}
 	});
@@ -79,7 +82,7 @@ PM.prototype.login = function(){
 }
 
 PM.prototype.authenticate = function(callback){
-	console.log('[PM] Logging in to account', this._account);
+	console.log('[PM]['+this._account+'] Logging in..');
 	var auth_re = /auth\.chatango\.com ?= ?([^;]*)/;
 	var data = querystring.stringify({user_id: this._account, password: this._password, storecookie: 'on', checkerrors: 'yes'});
 	var options = {host: 'chatango.com', port: 80, path: '/login', method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': data.length}};
@@ -114,7 +117,7 @@ PM.prototype._onAuth = function(){
 	});
 	
 	this._sock.on('error', function(exception) {
-		console.log(('['+self.name+'] Socket ERROR:').bold.red, exception);
+		console.log(('[PM]['+self._account+'] Socket ERROR:').bold.red, exception);
 		if(exception.errno == 'ECONNREFUSED'){
 			if(self._sock._port == 5222){
 				self._sock._port = 443;
@@ -125,15 +128,17 @@ PM.prototype._onAuth = function(){
 	});
 	
 	this._sock.on('timeout', function(exception) {
-		console.log(('['+self.name+'] Socket TIMEOUT:').bold.red, exception);
+		console.log(('[PM]['+self._account+'] Socket TIMEOUT:').bold.red, exception);
 	});
 	
 	this._sock.on('close', function() {
-		if(self._autoReconnect){
-			console.log(('['+self.name+'] Socket closed, reconnecting').bold.red);
-			self._sock.connect();
+		if(self._settings.autoReconnect){
+			console.log(('[PM]['+self._account+'] Socket closed, reconnecting').bold.red);
+			setTimeout(function(){
+				self._sock.connect();
+			}, self._settings.reconnectDelay * 1000);
 		}else{
-			console.log(('['+self.name+'] Socket closed, reconnect is off').bold.red);
+			console.log(('[PM]['+self._account+'] Socket closed, reconnect is off').bold.red);
 		}
 	});
 	
@@ -143,7 +148,7 @@ PM.prototype._onAuth = function(){
 		
 		var args = data.split(':');
 		
-		if(self._consoleFilter.indexOf(args[0]) == -1 && self._consoleFilter.indexOf('all') == -1)
+		if(self._settings.consoleFilter.indexOf(args[0]) == -1 && self._settings.consoleFilter.indexOf('all') == -1)
 			console.log('['+self.name+']', data);
 		
 		var _frame = frame.parseFramePM(data);
