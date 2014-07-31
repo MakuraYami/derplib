@@ -194,12 +194,12 @@ Room.prototype._onAuth = function(){
 		self._loggedIn = true;
 		self.write(['getpremium', '1']);
 		self.checkModStatus();
-		self.emit('loggedin');
+		eventModule.emit('loggedin', this);
 	});
 	
 	this.on('frame_logoutok', function(_frame) {
 		self._loggedIn = false;
-		self.emit('logout');
+		eventModule.emit('logout', this);
 	});
 	
 	this.on('frame_inited', function(args) {
@@ -208,9 +208,15 @@ Room.prototype._onAuth = function(){
 		
 		self.write(['getpremium', '1']);
 		self.write(['g_participants','start']);
+<<<<<<< HEAD
 		self.getBannedWords();
 		self.getBans();
 		self.emit('joined');
+=======
+		//this.getBannedWords();
+		//this.requestBanlist();
+		eventModule.emit('joined', this);
+>>>>>>> 1c60aed9d82b142c2f58accbc14532c52eab53f0
 	});
 	
 	/////////////////////
@@ -293,18 +299,20 @@ Room.prototype._onAuth = function(){
 		if(_frame.mode == 'leave'){
 			if(_.has(self.users, _frame.user.sess))
 				delete self.users[_frame.user.sess];
+				eventModule.emit('event', 'leave', this, _frame.user);
 		}
 		else if(_frame.mode == 'join'){
 			if(!_.has(self.users, _frame.user.sess))
 				 self.users[_frame.user.sess] = _frame.user;
+				 eventModule.emit('event', 'join', this, _frame.user);
 		}
 		else if(_frame.mode == 'change'){
 			//log in or out
 			self.users[_frame.user.sess] = _frame.user;
 			if(undefined === _frame.user.name){
-				eventModule.emit('event', 'userLogout', _frame.user);
+				eventModule.emit('event', 'userLogout', this, _frame.user);
 			}else{
-				eventModule.emit('event', 'userLogin', _frame.user);
+				eventModule.emit('event', 'userLogin', this, _frame.user);
 			}
 		}
 	});
@@ -321,7 +329,7 @@ Room.prototype._onAuth = function(){
 	this.on('frame_show_fw', function() {
 		console.log(('['+self.name+'] Flood warning. Going in lockdown').bold.red);
 		self._writeLock = true;
-		self.emit('start_fw');
+		eventModule.emit('start_fw', this);
 		setTimeout(function(){
 			self._writeLock = false;
 		}, 15000);
@@ -329,24 +337,25 @@ Room.prototype._onAuth = function(){
 	
 	this.on('frame_end_fw', function() {
 		self._writeLock = false;
-		self.emit('end_fw');
+		eventModule.emit('end_fw', this);
 	});
 	
 	this.on('frame_show_tb', function(_frame) {
 		// 15 minutes, result of flooding
-		self.emit('show_tempban', _frame.seconds);
+		eventModule.emit('show_tempban', this, _frame.seconds);
 	});
 	
 	this.on('frame_tb', function(_frame){
-		self.emit('tempban', _frame.time);
+		eventModule.emit('tempban', this, _frame.time);
 	});
 	
 	this.on('frame_clearall', function(_frame){
 		if(_frame.answer == 'ok'){
 			_.each(self.messages, function(message){
 				message.deleted = true;
+				eventModule.emit('messageDeleted', message, this);
 			});
-			self.emit('clearall');
+			eventModule.emit('clearall', this);
 		}
 	});
 	
@@ -354,7 +363,11 @@ Room.prototype._onAuth = function(){
 		var msg = _.find(self._messages, function(x){ return (x.id == _frame.msgid); });
 		if(msg){
 			msg.deleted = true;
+<<<<<<< HEAD
 			eventModule.emit('event', 'messageDeleted', msg, this);
+=======
+			eventModule.emit('messageDeleted', msg, this);
+>>>>>>> 1c60aed9d82b142c2f58accbc14532c52eab53f0
 		}
 	});
 	
@@ -363,12 +376,13 @@ Room.prototype._onAuth = function(){
 			var msg = _.find(self._messages, function(x){ return (x.id == _frame.msgid); });
 			if(msg){
 				msg.deleted = true;
+				eventModule.emit('messageDeleted', msg, this);
 			}
 		});
 	});
 	
 	this.on('frame_updateprofile', function(_frame) {
-		self.emit('profileupdate', _frame.name);
+		eventModule.emit('profileupdate', this, _frame.name);
 	});
 	
 	this.on('frame_mods', function(_frame) {
@@ -377,9 +391,9 @@ Room.prototype._onAuth = function(){
 		var removed = _.find(self.mods, function(x){ return self.mods.indexOf(x) < 0; });
 		
 		if(added){
-			self.emit('mod_added', added);
+			eventModule.emit('mod_added', this, added);
 		}else if(removed){
-			self.emit('mod_removed', removed);
+			eventModule.emit('mod_removed', this, removed);
 		}
 		self.checkModStatus();
 	});
@@ -390,16 +404,20 @@ Room.prototype._onAuth = function(){
 	
 	this.on('frame_blocked', function(_frame) {
 		self._bans[_frame.ban.name] = _frame.ban;
+<<<<<<< HEAD
 		eventModule.emit('event', 'ban', self, _frame.ban);
+=======
+		eventModule.emit('ban', this, _frame.ban);
+>>>>>>> 1c60aed9d82b142c2f58accbc14532c52eab53f0
 	});
 	
 	this.on('frame_unblocked', function(_frame) {
 		delete self._bans[_frame.unban.name];
-		self.emit('unban', _frame.unban);
+		eventModule.emit('unban', this, _frame.unban);
 	});
 	
 	this.on('frame_bansearchresult', function(_frame) {
-		self.emit('banSearchResult', _frame.result);
+		eventModule.emit('banSearchResult', this, _frame.result);
 	});
 	
 	this.on('frame_getbannedwords', function(_frame) {
