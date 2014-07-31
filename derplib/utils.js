@@ -364,11 +364,11 @@ exports.parseContact = function(state, time){
 	var contact = {state: false, time: false};
 	if(state == 'online' && time == 0){
 		//ONLINE
-		return {state: 'online', time: Math.round(+new Date/1000)};
+		return {state: 'online', time: Math.round(new Date/1000)};
 	}
 	else if(state == 'online' && time > 0){
 		//IDLE
-		return {state: 'idle', time: Math.round(+new Date/1000) - (time * 60)};
+		return {state: 'idle', time: Math.round(new Date/1000) - (time * 60)};
 	}
 	else if(state == 'offline'){
 		//OFF
@@ -393,6 +393,25 @@ exports.getAnonId = function(n,ssid) { //n is from message body, ssid is user_id
 	}
 	return id;
 }
+
+exports.getAnonName = function(num, ts) {
+	num = String(num).substr(4, 4);
+	if(undefined !== ts){
+		ts = String(ts).split(".")[0];
+		ts = ts.substr(ts.length - 4);
+	}else{
+		ts = ts || 3452;
+	}
+	var id = "";
+	for(var i = 0; i < num.length; i++){
+		var part1 = Number(num.substr(i, 1));
+		var part2 = Number(ts.substr(i, 1));
+		var part3 = String(part1 + part2);
+		id = id + part3.substr(part3.length - 1);
+	}
+	return "_anon" + id;
+}
+
 
 /*
  def aid(self, n, uid):

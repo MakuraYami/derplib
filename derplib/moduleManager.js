@@ -105,6 +105,7 @@ ModuleManager.prototype._load = function(mod, type) {
 		return _mod.exports;
 	};
 	_mod._id = mod;
+	_mod._path = path;
 	_mod._order = 0;
 	// Run the module
 	_mod.load(path);
@@ -133,8 +134,9 @@ ModuleManager.prototype._unload = function(mod, type) {
 	// Reload //
 
 ModuleManager.prototype._reload = function(mod, type) {
+	var path = this._data[type].loaded[mod]._path;
 	if(this._unload(mod, type)){
-		return this._load(mod, type);
+		return this._load(path, type);
 	}
 };
 

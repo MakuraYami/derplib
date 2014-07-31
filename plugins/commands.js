@@ -11,7 +11,7 @@ var MM 			= module.parent,
 
 // data
 var commands = {};
-	
+
 // Register commands
 MM._data.command = {
 	dir: './commands/',
@@ -39,12 +39,24 @@ exports.autoLoad = function(){
 	return exports;
 }
 
+exports.get = function(cmd){
+	if(undefined == cmd)
+		return commands;
+	else if(_.has(commands, cmd))
+		return commands[cmd];
+	else if(~cmd.indexOf('-')){
+		
+	} else
+		return false;
+}
+
 // Raw command object
 function newCommand(args){
 	var commandObject = {
 		key: '',			// Handle key and command word
 		access: false,		// Required access level
 		nodes: ['run'],		// For permissions
+		prefixes: [],		// If not empty over-writes default prefixes
 		description: '',	// Text shown for commands in !help (leave empty to not show)
 		// Settings
 		active: true,		// Disable command
@@ -54,7 +66,6 @@ function newCommand(args){
 		pm_only: false,		// Command can't be used in rooms
 		abbreviations: [],	// Alternate command words
 		available: function(req){ return true; },	// Check if the user is allowed to execute command, aside from access level
-		
 		subcommands: [],	// If first argument equals subcommand key, execute that.
 		cache: {
 			users: {},		// User cache, dissapears on reboot - includes 'lastused'
@@ -116,7 +127,12 @@ exports.request = function(args, cb){
 	
 	if(!_.has(data, 'prefixes') || data.prefixes.length == 0) data.prefixes = ['-'];
 	
-	var command_regex = new RegExp('^\\s*(\\'+data.prefixes.join('|\\')+')([a-z].*)','i');
+	var prefixList = _.reduce(data.prefixes, function(list, prefix){
+		if(prefix) list.push('\\'+prefix);
+		return list;
+	}, []);
+	
+	var command_regex = new RegExp('^\\s*('+prefixList.join('|')+')([a-z].*)','i');
 	var match = command_regex.exec(req.message.text);
 	
 	if(match){ // Prefix matches
@@ -127,7 +143,7 @@ exports.request = function(args, cb){
 		var command = exports.findCommand(parts);
 		if(command){
 			// Add the command 
-			req.message.command = command;
+			req.command = command;
 			if(req.perm){
 				if(req.perm('cmd.'+command.key+'.run')){
 					// Execute command
@@ -190,6 +206,7 @@ function execute(command, req){
 		}
 	}
 	
+	eventModule.emit('beforeCommand', req);
 	command.run(req);
 	
 	// Finish command

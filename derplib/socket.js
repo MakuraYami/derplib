@@ -53,7 +53,7 @@ Socket.prototype.connect = function()
 			
 			self._pingTask = setInterval(function() {
 				if(self._connected) {
-					self.write([]);
+					self.write(['']);
 				}
 			}, 30000);
 			
@@ -67,7 +67,7 @@ Socket.prototype.connect = function()
 	
 		var buffer = data.toString('utf8');
 		
-		if(buffer.substr(-3) !== '\r\n\0')
+		if(buffer.substr(-1) !== '\x00')
 		{
 			self._buffer += buffer;
 		}
@@ -78,11 +78,13 @@ Socket.prototype.connect = function()
 				buffer = self._buffer + buffer;
 				self._buffer = '';
 			}
-			var messages = buffer.split('\r\n\0');
+			var messages = buffer.split('\x00');
 			
 			_.each(messages, function(message){
 				
-				if(message.replace(/(\r|\n)/g, '') != '')
+				message = message.replace(/(\r|\n)/g, '');
+				
+				if(message !== '')
 					self.emit('data', message);
 				
 			});
@@ -124,11 +126,11 @@ Socket.prototype.write = function(data) {
 	{
 		if(this._firstCommand)
 		{
-			var terminator = '\0';
+			var terminator = '\x00';
 			this._firstCommand = false;
 		}
 		else
-			var terminator = '\r\n\0';
+			var terminator = '\r\n\x00';
 		
 		if(this._writeLock) 
 			this._writeBuffer.push(data);

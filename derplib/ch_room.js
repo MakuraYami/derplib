@@ -29,7 +29,7 @@ function Room(options) {
 	if(!options.room) return;
 	
 	// Public vars
-	this.name = options.room;
+	this.name = options.room.toLowerCase();
 	this.ispm = false;
 	this.admin = false;
 	this.mods = [];
@@ -62,9 +62,10 @@ function Room(options) {
 		useBackground: true,
 		useRecording: false,
 		nameColor: '000',
-		textSize: '13',
+		textSize: '11',
 		textColor: 'F00',
 		textFont: '8',
+		htmlEntenyConert: true,
 	};
 	
 	var self = this;
@@ -153,8 +154,7 @@ Room.prototype._onAuth = function(){
 				self.emit('frame_'+_frame.type, _frame);
 			}
 			catch(e){
-				console.log(e.stack);
-				//console.log(e.stack.split('\n').slice(0,4).join(''));
+				console.log('['+self.name+'] Error:', e.stack.split('\n').slice(0,4).join(''));
 			}
 		}
 	});
@@ -183,7 +183,8 @@ Room.prototype._onAuth = function(){
 			this.disconnect();
 			return;
 		}
-		
+		self.bans = {};
+		self.users = {};
 		self.admin = _frame.owner;
 		self.mods = _frame.mods;
 		self.checkModStatus();
@@ -207,8 +208,8 @@ Room.prototype._onAuth = function(){
 		
 		self.write(['getpremium', '1']);
 		self.write(['g_participants','start']);
-		//this.getBannedWords();
-		//this.requestBanlist();
+		self.getBannedWords();
+		self.getBans();
 		self.emit('joined');
 	});
 	
@@ -216,7 +217,6 @@ Room.prototype._onAuth = function(){
 	// Data management //
 	
 	this.on('frame_i', function(_frame) {
-		
 		var req = new request.make(self);
 		req.parseMessage(_frame);
 		
@@ -260,6 +260,7 @@ Room.prototype._onAuth = function(){
 		// Don't reply to self
 		if(req.room._user_id == req.user.id) return;
 		
+		eventModule.emit('beforeRequest', req);
 		eventModule.emit('event', 'request', req);
 	});
 	
@@ -353,7 +354,7 @@ Room.prototype._onAuth = function(){
 		var msg = _.find(self._messages, function(x){ return (x.id == _frame.msgid); });
 		if(msg){
 			msg.deleted = true;
-			self.emit('messageDeleted', msg);
+			eventModule.emit('event', 'messageDeleted', msg, this);
 		}
 	});
 	
@@ -372,8 +373,8 @@ Room.prototype._onAuth = function(){
 	
 	this.on('frame_mods', function(_frame) {
 		self.mods = _frame.mods;
-		var added = _.find(args, function(x){ return self.mods.indexOf(x) > -1; });
-		var removed = _.find(self.mods, function(x){ return args.indexOf(x) < 0; });
+		var added = _.find(self.mods, function(x){ return self.mods.indexOf(x) > -1; });
+		var removed = _.find(self.mods, function(x){ return self.mods.indexOf(x) < 0; });
 		
 		if(added){
 			self.emit('mod_added', added);
@@ -389,7 +390,7 @@ Room.prototype._onAuth = function(){
 	
 	this.on('frame_blocked', function(_frame) {
 		self._bans[_frame.ban.name] = _frame.ban;
-		self.emit('ban', _frame.ban);
+		eventModule.emit('event', 'ban', self, _frame.ban);
 	});
 	
 	this.on('frame_unblocked', function(_frame) {
@@ -415,13 +416,6 @@ Room.prototype._onAuth = function(){
 		self.getBannedWords();
 	});
 	
-}
-
-Room.prototype.font = function(size, color, face) {
-	size = size || this._settings.textSize;
-	color = color || this._settings.textColor;
-	face = face || this._settings.textFont;
-	return '<f x'+size+color+'="'+face+'">';
 }
 
 // Usable functions
@@ -452,6 +446,14 @@ Room.prototype.write = function(args) {
 	}
 }
 
+function stringConvertEnteties(string, all){
+	all = all || false;
+	return _.reduce(string, function(x,y,i){
+		var code = string.charCodeAt(i);
+		return x += code = (all || code > 127) ? '&#'+code+';' : string.charAt(i);
+	},'');
+}
+
 Room.prototype.message = function(body) {
 	
 	if(this._writeLock || !body) return;
@@ -461,7 +463,7 @@ Room.prototype.message = function(body) {
 	if(_.isArray(body)){
 		//Multi-line message
 		var output = _.reduce(body, function(output, msg, i){
-			return output += self.font() + String(msg) + '</f></p>' + (i == body.length-1 ? '' : '<p>');
+			return output += self.font() + String(msg) + self.fontEnd() + '</p>' + (i == body.length-1 ? '' : '<p>');
 		}, '');
 		
 		output = output.replace(/(\n\r|\r\n|\n|\r|\0)/g, '<br/>');
@@ -472,14 +474,40 @@ Room.prototype.message = function(body) {
 	else{
 		body = String(body).replace(/(\n\r|\r\n|\n|\r|\0)/g, '<br/>');
 		_.each(body.match(/.{1,2950}/gm), function(msg){
-			self.write('bmsg', 'l33t', '<n'+self._settings.nameColor+'/>' + self.font() + msg);
+			self.write('bmsg', 'l33t', '<n'+self._settings.nameColor+'/>' + self.font() + msg + self.fontEnd());
 		});
 	}
 };
 
+Room.prototype.multiLine = function(array){
+	if(_.isArray(array)) {
+		return _.reduce(array, function(output, msg, i){
+			return output += this.font() + String(msg) + this.fontEnd() + '</p>' + (i == array.length-1 ? '' : '<p>');
+		}.bind(this), '');
+	} else if(_.isString(array)) {
+		return array;
+	}
+}
+
+Room.prototype.font = function(color, size, face) {
+	color = color || this._settings.textColor;
+	size = size || this._settings.textSize;
+	face = face || this._settings.textFont;
+	return '<f x'+String(size)+String(color)+'="'+String(face)+'">';
+}
+
+Room.prototype.fontEnd = function() {
+	return '</f>';
+}
+
+
 // Chatango functions
 
-Room.prototype.login = function(){
+Room.prototype.login = function(account){
+	if(!account) return;
+	this._account = account;
+	this._accountLC = account.toLowerCase();
+	this._password = MM.parent._data.accounts[this._accountLC];
 	if(!this._loggedIn)
 		this.write(['blogin', this._account, this._password]);
 }
@@ -521,10 +549,8 @@ Room.prototype.userTime = function(user, cb){
 		return pm._sock && pm._sock._connected;
 	});
 	if(pm){
-		pm.connectChat(user);
-		eventModule.once('PmChatOpen', function(frame){
-			pm.disconnectChat(user);
-			cb(frame);
+		pm.userTime(user, function(contact){
+			cb(contact);
 		});
 	}else{
 		cb(false);
@@ -553,34 +579,37 @@ Room.prototype.del = function(message) {
 }
 
 Room.prototype.delLast = function(amount) {
-	amount = Math.max(amount, 1) || 1;
-	var self = this;
-	_.each(self._messages.slice(-amount), function(message){
-		self.del(message);
-	});
+	if(this._isModerator){
+		amount = Math.max(parseInt(amount), 1) || 1;
+		_.each(this._messages.slice(-amount), function(message){
+			this.del(message);
+		}.bind(this));
+	}
 }
 
-Room.prototype.delUser = function(name) {
+Room.prototype.delLastUser = function(name, amount) {
 	if(this._isModerator){
-		var msg = _.find(this._messages.reverse(), function(msg){
+		amount = Math.max(parseInt(amount), 1) || 1;
+		var messages = _.filter(this._messages, function(msg){
 			return !msg.deleted && msg.name == name.toLowerCase();
 		});
-		if(msg) this.del(msg);
+		_.each(messages.slice(-amount), function(message){
+			this.del(message);
+		}.bind(this));
 	}
 }
 
 Room.prototype.clearUser = function(name) {
-	if(this._isModerator){
-		var self = this;
+	if(this._isModerator && name){
 		_.each(this.users, function(user){
 			if(user.name == name.toLowerCase() && user.key)
-				self.write(['delallmsg', user.key]);
-		});
+				this.write(['delallmsg', user.key]);
+		}.bind(this));
 	}
 }
 
 Room.prototype.modClearAll = function() {
-	if(this._isAdmin){
+	if(this._isModerator){
 		var self = this;
 		_.each(this.users, function(user){
 			if(user.key) self.write(['delallmsg', user.key]);
@@ -646,38 +675,38 @@ Room.prototype.setBannedWords = function(partly, exact) {
 
 Room.prototype.addPartlyBannedWord = function(word) {
 	if(this._isAdmin){
-		if(this.bannedWordsPartly.indexOf(word) < 0){
-			this.bannedWordsPartly.push(word);
-			this.command('setbannedwords', '431', this.bannedWordsPartly.join(','), this.bannedWordsExact.join(','));
+		if(this._bannedWordsPartly.indexOf(word) < 0){
+			this._bannedWordsPartly.push(word);
+			this.write('setbannedwords', '431', this._bannedWordsPartly.join(','), this._bannedWordsExact.join(','));
 		}
 	}
 }
 
 Room.prototype.addExactBannedWord = function(word) {
 	if(this._isAdmin){
-		if(this.bannedWordsExact.indexOf(word) < 0){
-			this.bannedWordsExact.push(word);
-			this.command('setbannedwords', '431', this.bannedWordsPartly.join(','), this.bannedWordsExact.join(','));
+		if(this._bannedWordsExact.indexOf(word) < 0){
+			this._bannedWordsExact.push(word);
+			this.write('setbannedwords', '431', this._bannedWordsPartly.join(','), this._bannedWordsExact.join(','));
 		}
 	}
 }
 
 Room.prototype.removePartlyBannedWord = function(word) {
 	if(this._isAdmin){
-		var index = this.bannedWordsPartly.indexOf(word);
+		var index = this._bannedWordsPartly.indexOf(word);
 		if(index >= 0){
-			this.bannedWordsPartly.splice(index, 1);
-			this.command('setbannedwords', '431', this.bannedWordsPartly.join(','), this.bannedWordsExact.join(','));
+			this._bannedWordsPartly.splice(index, 1);
+			this.write('setbannedwords', '431', this._bannedWordsPartly.join(','), this._bannedWordsExact.join(','));
 		}
 	}
 }
 
 Room.prototype.removeExactBannedWord = function(word) {
 	if(this._isAdmin){
-		var index = this.bannedWordsExact.indexOf(word);
+		var index = this._bannedWordsExact.indexOf(word);
 		if(index >= 0){
-			this.bannedWordsExact.splice(index, 1);
-			this.command('setbannedwords', '431', this.bannedWordsPartly.join(','), this.bannedWordsExact.join(','));
+			this._bannedWordsExact.splice(index, 1);
+			this.write('setbannedwords', '431', this._bannedWordsPartly.join(','), this._bannedWordsExact.join(','));
 		}
 	}
 }

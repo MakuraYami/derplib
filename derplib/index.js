@@ -19,7 +19,6 @@ var MM = require(__dirname+'/moduleManager').instance,
 	pm			= MM.libary.load('ch_pm').PM,
 	requests	= MM.libary.load('ch_requests'),
 	events		= MM.libary.load('eventModule');
-MM.libary.load('eventModule');
 
 // Make DerpLib Available everywhere via Module Manager
 MM.setParent(exports);
@@ -37,8 +36,12 @@ function newRoom(options){
 	}
 }
 function newPM(options){
-	if(_.intersection(['account', 'password'], _.keys(options)).length === 2){
-		if(_.has(data.pms, options.account)) data.pms[options.account].disconnect();
+	if(_.has(options, 'account') || data.defaultAccount){
+		options.account = options.account || data.defaultAccount;
+		options.password = options.password || data.accounts[options.account.toLowerCase()];
+		if(_.has(data.pms, options.account)){
+			data.pms[options.account].disconnect();
+		}
 		return data.pms[options.account] = new pm(options);
 	}
 }

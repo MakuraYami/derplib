@@ -34,12 +34,8 @@ Request.prototype.parseMessage = function(frame) {
 	};
 	// Set name to lowercase
 	if(frame.user.name) frame.user.name = frame.user.name.toLowerCase();
-	// What kind of user is it
-	if(frame.user.name && frame.user.alias === undefined) frame.user.type = 'user';
-	else if(frame.user.name === undefined && frame.user.alias) frame.user.type = 'temp';
-	else frame.user.type = 'anon';
 	
-	//CONTINUE
+	// Parse message data
 	message.text = utils.html_decode(utils.html_remove(message.body));
 	message.nameColor = /<n([0-9a-f]*)\/>/gi.exec(message.body);
 	message.nameColor = message.nameColor ? message.nameColor[1] : false;
@@ -49,15 +45,24 @@ Request.prototype.parseMessage = function(frame) {
 		message.fontColor = fontMatches[2];
 		message.fontFace = fontMatches[3];
 	}
-	if(frame.user.type == 'anon') {
-		frame.user.name = '_anon' + utils.getAnonId(message.nameColor, message.user_id);
-	}
-	else if(frame.user.type == 'temp'){
+	// Set user details
+	if(frame.user.name && frame.user.alias === undefined) {
+		frame.user.type = 'user';
+		if(this.room.mods.indexOf(frame.user.name) != -1) {
+			frame.user.level = 3;
+		} else if(this.room.admin == frame.user.name) {
+			frame.user.level = 4;
+		} else {
+			frame.user.level = 2;
+		}
+	} else if(frame.user.name === undefined && frame.user.alias) {
+		frame.user.type = 'temp'
+		frame.user.level = 1;
 		frame.user.name = '#' + frame.user.alias;
-	}
-	else if(frame.user.type == 'user'){
-		if(this.room.mods.indexOf(frame.user.name) != -1) frame.user.access = 1;
-		if(this.room.admin == frame.user.name) frame.user.access = 2;
+	} else {
+		frame.user.type = 'anon'
+		frame.user.level = 0;
+		frame.user.name = '_anon' + utils.getAnonId(message.nameColor, message.user_id);
 	}
 	
 	//Extra

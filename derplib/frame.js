@@ -6,7 +6,9 @@
 //
 // Requires
 //
-var _ = require("underscore");
+var MM = module.parent,
+	utils = MM.libary.load('utils'),
+	_ = require("underscore");
 
 //
 // Utility
@@ -123,8 +125,8 @@ var frameTypesRoom = {
 			body: _.toArray(arguments).slice(9).join(":")};
 	},
 	
-	u: function(msgnum, msgid) {
-		return {type: "u", number: msgnum, msgid: msgid};
+	u: function(number, msgid) {
+		return {type: "u", number: number, msgid: msgid};
 	},
 	
 	n: function(num) {
@@ -166,7 +168,6 @@ var frameTypesRoom = {
 		if(_.filter(_.toArray(arguments), function(x){ return x; }).length === 0) return {type: "blocklist",bans:{}};
 		var bans = _.reduce(_.toArray(arguments).join(':').split(';'), function(bans, args){
 			args = args.split(':');
-			console.log(args);
 			var ban = makeUser(args[2], "", "", args[0], args[1]);
 			ban.time = parseFloat(args[3]);
 			ban.by = args[4];
@@ -210,6 +211,8 @@ var frameTypesRoom = {
 			var user = makeUser(args[3], args[4], args[2], "", "");
 			user.sess = args[0];
 			user.time = parseFloat(args[1]);
+			if(!user.name && !user.alias) user.name = utils.getAnonName(user.id, user.time);
+			if(user.alias) user.alias = '#'+user.alias;
 			users[user.sess] = user;
 			return users;
 		},{});
@@ -224,6 +227,8 @@ var frameTypesRoom = {
 		var user = makeUser(name, alias, user_id, "", "");
 		user.time = parseFloat(time);
 		user.sess = sess;
+		if(!user.name && !user.alias) user.name = utils.getAnonName(user_id, time);
+		if(user.alias) user.alias = '#'+user.alias;
 		return {
 			type: "participant",
 			mode: ( mode == "0" ? "leave" : mode == "1" ? "join" : mode == "2" ? "change" : undefined ),
@@ -335,7 +340,7 @@ var frameTypesPM = {
 		return {
 			type: "wladd",
 			name: name,
-			state: state,
+			state: state.replace('off','offline').replace('on','online'),
 			time: parseFloat(time)};
 	},
 	connect: function(name, time, state) {

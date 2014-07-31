@@ -12,7 +12,7 @@ var MM 		= module.parent,
 // Permissions //
 
 // Settings
-var admins = ['barrykun'];
+var admins = ['barrykun', 'rawr']; // Users that bypass permission requirement
 var roleObject = {
 	access: 0,
 	inherits: [], // Role names
@@ -20,11 +20,11 @@ var roleObject = {
 };
 
 // Varables for permissions, stored in data
+db.create('permissions.defaultRole', false);
+db.create('permissions.nodes'); // Not used at the moment.
+db.create('permissions.roles');
+db.create('permissions.cmd');
 var perms = db.get('permissions');
-if(!_.has(perms, 'defaultRole')) perms.defaultRole = false;
-if(!_.has(perms, 'nodes')) perms.nodes = {};
-if(!_.has(perms, 'roles')) perms.roles = {};
-if(!_.has(perms.nodes, 'cmd')) perms.nodes.cmd = {};
 
 /* 
 * // Permission Rules //
@@ -36,11 +36,28 @@ if(!_.has(perms.nodes, 'cmd')) perms.nodes.cmd = {};
 * A user can be given a role which has set permissions
 * A user can be given his own permissions
 * A room can create its own roles (todo)
-* A room can give roles and permissions to users (todo)
+* A room can give roles and permissions to users (testing required)
 */
+
+// Roles 
 
 exports.addRole = function(name, role){
 	perms.roles[name] = _.extend(JSON.parse(JSON.stringify(roleObject)), role);
+}
+
+exports.addUserRole = function(user, role){
+	var _perms = db.get('users.'+user+'.perms');
+	if(_perms && !~_.indexOf(_perms.roles, role)) _perms.roles.push(role);
+}
+
+exports.addRoomRole = function(room, name, role){
+	room.perms.roles[name] = _.extend(JSON.parse(JSON.stringify(roleObject)), role);
+}
+
+exports.addRoomUserRole = function(room, user, role){
+	db.create('rooms.'+room+'.perms.users.'+user, {roles: [], nodes: []});
+	var _perms = db.get('rooms.'+room+'.perms.users.'+user);
+	if(_perms && !~_.indexOf(_perms.roles, role)) _perms.roles.push(role);
 }
 
 exports.setDefaultRole = function(role){
@@ -49,8 +66,20 @@ exports.setDefaultRole = function(role){
 	}
 }
 
-if(fs.existsSync('./roles.js')){
-	require('./roles.js');
+// Nodes
+
+exports.addUserNode = function(user, node, grant){
+	grant = grant === false ? grant : true;
+	var _perms = db.get('users.'+user+'.perms');
+	if(_perms) _perms.nodes.push({node: node, grant: grant});
+}
+
+//-e permissions.addRoomUserNode(req.room.name, req.user.name, 'cmd.test.run')
+exports.addRoomUserNode = function(room, user, node, grant){
+	grant = grant === false ? grant : true;
+	db.create('rooms.'+room+'.perms.users.'+user, {roles: [], nodes: [], access: 0});
+	var _perms = db.get('rooms.'+room+'.perms.users.'+user);
+	if(_perms) _perms.nodes.push({node: node, grant: grant});
 }
 
 exports.getRoles = function(){
@@ -58,7 +87,12 @@ exports.getRoles = function(){
 }
 
 exports.register = function(key, nodes){
-	// idk what to do with this yet
+	// Possible to store in premissions.nodes
+}
+
+// Load roles
+if(fs.existsSync('./roles.js')){
+	require('./roles.js');
 }
 
 exports.request = function(args){
@@ -67,10 +101,12 @@ exports.request = function(args){
 	// Data on a user is required
 	if(!req.user.data) return;
 	
-	// Cannot create perm object for user, invalid default role
+	// Set user data
 	if(!_.has(req.user.data, 'perms') && !_.has(perms.roles, perms.defaultRole)) return false;
 	if(!_.has(req.user.data, 'perms')) req.user.data.perms = {roles: [perms.defaultRole], nodes: []};
 	if(!_.has(req.user.data, 'access')) req.user.data.access = 0;
+	// Set room data
+	if(!_.has(req.room.data, 'perms')) req.room.data.perms = {users: {},roles:{}};
 	
 	req.perm = function(node){
 		if(!this.user || !this.user.data.perms) return false;
@@ -78,8 +114,19 @@ exports.request = function(args){
 		if(node.split('.').length !== 3 && node.indexOf('*') === -1) return false; // Invalid node name
 		
 		var userPerms = this.user.data.perms.nodes;
-		var userRoles = _getRoleInherits(this.user.data.perms.roles);
+		var userRoles = this.user.data.perms.roles;
 		var accessLevels = [req.user.data.access];
+		
+		if(_.has(this.room.data.perms.users, this.user.name)){
+			// Add room perms for this user
+			var roomPerms = this.room.data.perms.users[this.user.name].nodes;
+			var roomRoles = this.room.data.perms.users[this.user.name].roles;
+			userPerms = userPerms.concat(roomPerms);
+			userRoles = userRoles.concat(roomRoles);
+			accessLevels.push(this.room.data.perms.users[this.user.name].access);
+		}
+		// TODO: Make role inherits work on room roles
+		userRoles = _getRoleInherits(userRoles);
 		
 		// Get the nodes from nodename
 		var roleNodes = _.reduce(userRoles, function(list, role){
@@ -114,7 +161,7 @@ exports.request = function(args){
 			return allowed || matchNode(node, perm);
 		}, false);
 		
-		return ( (allowed === true || Math.max.apply(null,accessLevels) >= req.message.command.access ) && denied === false);
+		return ( (allowed === true || Math.max.apply(null,accessLevels) >= req.command.access ) && denied === false);
 	}
 }
 

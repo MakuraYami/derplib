@@ -25,12 +25,13 @@ function PM(options) {
 	
 	options = options || {};
 	
-	this.name = 'PM';
 	this.ispm = true;
 	this.contacts = {};
 	this.blocklist = [];
 	this._account = options.account || false;
+	this._accountLC = this._account ? this._account.toLowerCase() : false;
 	this._password = options.password || false;
+	this.name = this._accountLC;
 	this._loggedIn = false;
 	this._authid = false;
 	this._writeLock = false;
@@ -49,9 +50,11 @@ function PM(options) {
 	
 	var self = this;
 	
-	eventModule.emit("event", "newpm", this._account, function(settings){
-		if(_.isObject(settings))
-			self._settings = _.extend(self._settings, settings);
+	eventModule.emit("event", "newRoom", this, function(){
+		// May not be changed
+		self._settings.type = 'pm';
+		self._settings.active = true;
+		
 		self.login();
 	});
 	
@@ -65,13 +68,13 @@ PM.prototype.login = function(){
 	
 	this.authenticate(function(result){
 		if(result){
-			console.log('[PM] Session is authenticated');
+			console.log('[PM]['+self._account+'] Session is authenticated');
 			self._authid = result;
 			self._sock = new socket.Instance('c1.chatango.com',	5222);
 			self._onAuth();
 			eventModule.emit("_PMLoggedIn");
 		} else {
-			console.log('[PM] Session failed to authenticate');
+			console.log('[PM]['+self._account+'] Session failed to authenticate');
 			eventModule.emit("_PMLoginFail");
 		}
 	});
@@ -79,7 +82,7 @@ PM.prototype.login = function(){
 }
 
 PM.prototype.authenticate = function(callback){
-	console.log('[PM] Logging in to account', this._account);
+	console.log('[PM]['+this._account+'] Logging in..');
 	var auth_re = /auth\.chatango\.com ?= ?([^;]*)/;
 	var data = querystring.stringify({user_id: this._account, password: this._password, storecookie: 'on', checkerrors: 'yes'});
 	var options = {host: 'chatango.com', port: 80, path: '/login', method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': data.length}};
@@ -114,7 +117,7 @@ PM.prototype._onAuth = function(){
 	});
 	
 	this._sock.on('error', function(exception) {
-		console.log(('['+self.name+'] Socket ERROR:').bold.red, exception);
+		console.log(('[PM]['+self._account+'] Socket ERROR:').bold.red, exception);
 		if(exception.errno == 'ECONNREFUSED'){
 			if(self._sock._port == 5222){
 				self._sock._port = 443;
@@ -125,15 +128,15 @@ PM.prototype._onAuth = function(){
 	});
 	
 	this._sock.on('timeout', function(exception) {
-		console.log(('['+self.name+'] Socket TIMEOUT:').bold.red, exception);
+		console.log(('[PM]['+self._account+'] Socket TIMEOUT:').bold.red, exception);
 	});
 	
 	this._sock.on('close', function() {
 		if(self._autoReconnect){
-			console.log(('['+self.name+'] Socket closed, reconnecting').bold.red);
+			console.log(('[PM]['+self._account+'] Socket closed, reconnecting').bold.red);
 			self._sock.connect();
 		}else{
-			console.log(('['+self.name+'] Socket closed, reconnect is off').bold.red);
+			console.log(('[PM]['+self._account+'] Socket closed, reconnect is off').bold.red);
 		}
 	});
 	
@@ -144,7 +147,7 @@ PM.prototype._onAuth = function(){
 		var args = data.split(':');
 		
 		if(self._consoleFilter.indexOf(args[0]) == -1 && self._consoleFilter.indexOf('all') == -1)
-			console.log('['+self.name+']', data);
+			console.log('[PM]['+self._account+']', data);
 		
 		var _frame = frame.parseFramePM(data);
 		
@@ -153,7 +156,7 @@ PM.prototype._onAuth = function(){
 				self.emit('frame_'+_frame.type, _frame);
 			}
 			catch(e){
-				console.log(e.stack);
+				console.log('[PM]['+self._account+'] Error: ', e.stack);
 				//console.log(e.stack.split('\n').slice(0,4).join(''));
 			}
 		}
@@ -161,7 +164,7 @@ PM.prototype._onAuth = function(){
 	});
 	
 	this._sock.on('write', function(data){
-		//if(data) console.log('['+self.name+'][WRITE]', data);
+		//if(data) console.log('[PM]['+self._account+'][WRITE]', data);
 	});
 	
 	///////////////////////
@@ -231,8 +234,10 @@ PM.prototype._onAuth = function(){
 	});
 	
 	this.on('frame_wladd', function(_frame){
-		self.contacts[_frame.name] = utils.parseContact(_frame.state, _frame.time);
-		eventModule.emit('PmFriendAdded', _frame);
+		var contact = utils.parseContact(_frame.state, _frame.time);
+		self.contacts[_frame.name] = contact;
+		eventModule.emit('PmFriendAdded', _.extend({name: _frame.name}, contact));
+		eventModule.emit('PmFriendAdded-'+_frame.name, _.extend({name: _frame.name}, contact));
 	});
 	
 	this.on('frame_connect', function(_frame){
@@ -300,10 +305,10 @@ PM.prototype.message = function(name, body) {
 			output += '<P>'+this.font()+body[i]+'</g></P>';
 		}
 		this.write(['msg', name, '<n'+this._settings.nameColor+'/><m v="1">'+output+'</m>']);
-		console.log('[PM][WRITE]['+name+'] '+body.join('\n'));
+		console.log('[PM]['+this._account+'][WRITE]['+name+'] '+body.join('\n'));
 	}else{
 		this.write(['msg', name, '<n'+this._settings.nameColor+'/><m v="1">'+this.font()+body+'</g></m>']);
-		console.log('[PM][WRITE]['+name+'] '+body);
+		console.log('[PM]['+this._account+'][WRITE]['+name+'] '+body);
 	}
 };
 
@@ -316,6 +321,18 @@ PM.prototype.font = function(size, color, face) {
 
 PM.prototype.addFriend = function(name){
 	this.write('wladd', name);
+}
+
+PM.prototype.userTime = function(user, cb){
+	user = String(user).toLowerCase();
+	if( this._accountLC == user){
+		return utils.parseContact('online',0);
+	}
+	this.addFriend(user);
+	var test = eventModule.once('PmFriendAdded-'+user, function(frame){
+		// Remove friend if it wasn't before.
+		cb(frame);
+	});
 }
 
 PM.prototype.updateProfile = function(fields){
@@ -337,7 +354,6 @@ PM.prototype.updateProfile = function(fields){
 	});
 	var options = {hostname: this._account+'.chatango.com', path: '/updateprofile?flash&d&pic&s='+this._authid, method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': data.length}};
 	var req = http.request(options, function(res) {
-		console.log('STATUS: ' + res.statusCode);
 		res.setEncoding('utf8');
 		var result = "";
 		res.on('data', function(chunk){ result += chunk; });
@@ -356,3 +372,84 @@ PM.prototype.updateProfile = function(fields){
 // Exports
 //
 exports.PM = PM;
+
+
+/*
+ch_room.js
+Room.prototype.parseFont = function(string) {
+	var self = this;
+	var all = string.split(string.match(/<font/i));
+	all.shift();
+	_.each(all, function(text){
+		var color = text.match(/color="#(.*?)"/);
+		color = color != undefined ? color[1] :self._settings.textColor;
+		var size = text.match(/size="(.*?)"/);
+		size = size != undefined ? size[1] :self._settings.textSize;
+		var face = text.match(/face="(.*?)"/);
+		face = face != undefined ? face[1] :self._settings.textFont;
+		string = string.replace(/<font(.*?)>/, '<f x'+size+color+'="'+face+'">');
+		string = string.replace(/<\/font>/g, '</f>');
+	});
+	return string;
+}
+
+Room.prototype.message = function(body) {
+	
+	if(this._writeLock || !body) return;
+	
+	var self = this;
+	
+	if(_.isArray(body)){
+		//Multi-line message
+		var output = _.reduce(body, function(output, msg, i){
+			return output += self.font() + String(msg) + '</f></p>' + (i == body.length-1 ? '' : '<p>');
+		}, '');
+		
+		output = output.replace(/(\n\r|\r\n|\n|\r|\0)/g, '<br/>');
+		_.each(output.match(/.{1,2950}/gm), function(msg){
+			self.write('bmsg', 'l33t', '<n'+self._settings.nameColor+'/>'+self.parseFont(msg));
+		});
+	}
+	else{
+		body = String(body).replace(/(\n\r|\r\n|\n|\r|\0)/g, '<br/>');
+		_.each(body.match(/.{1,2950}/gm), function(msg){
+			self.write('bmsg', 'l33t', '<n'+self._settings.nameColor+'/>' + self.font() + self.parseFont(msg));
+		});
+	}
+};
+
+ch_pm.js
+PM.prototype.message = function(name, body) {
+	var self = this;
+	if(this._writeLock || !name || !body) return;
+	
+	if(_.isArray(body)){
+		var output = '';
+		for(var i=0; i<body.length; i++){
+			output += '<P>'+this.font()+body[i]+'</g></P>';
+		}
+		this.write(['msg', name, '<n'+this._settings.nameColor+'/><m v="1">'+self.parseFont(output)+'</m>']);
+		console.log('[PM][WRITE]['+name+'] '+body.join('\n'));
+	}else{
+		this.write(['msg', name, '<n'+this._settings.nameColor+'/><m v="1">'+this.font()+self.parseFont(body)+'</g></m>']);
+		console.log('[PM][WRITE]['+name+'] '+body);
+	}
+};
+
+PM.prototype.parseFont = function(string) {
+	var self = this;
+	var all = string.split(string.match(/<font/i));
+	all.shift();
+	_.each(all, function(text){
+		var color = text.match(/color="#(.*?)"/);
+		color = color != undefined ? color[1] :self._settings.textColor;
+		var size = text.match(/size="(.*?)"/);
+		size = size != undefined ? size[1] :self._settings.textSize;
+		var face = text.match(/face="(.*?)"/);
+		face = face != undefined ? face[1] :self._settings.textFont;
+		string = string.replace(/<font(.*?)>/, '<g x'+size+'s'+color+'="'+face+'">');
+		string = string.replace(/<\/font>/g, '</g>');
+	});
+	return string;
+}
+*/

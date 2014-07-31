@@ -16,15 +16,23 @@ function EventModule(){
 	try{
 		
 		if(this._events.event) return;
+		
 		this.on("event", function(){
+		
 			var args = Array.prototype.slice.call(arguments);
 			var event = args.shift();
+			
 			MM.event(event, args, function(result){
+			
 				result.unshift(event);
+				
 				if("function" === typeof result[result.length-1])
 					result[result.length-1].apply(self, result.slice(1,result.length-1));
+					
 				self.emit.apply(self, result);
+				
 			});
+			
 		});
 		
 	}catch(e){
@@ -36,3 +44,4 @@ function EventModule(){
 util.inherits(EventModule, events.EventEmitter);
 
 module.exports = new EventModule();
+

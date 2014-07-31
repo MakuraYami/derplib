@@ -77,8 +77,8 @@ exports.profile = function(name, callback){
 			if(user.mini){
 				user.mini = decodeURIComponent(user.mini);
 			}
-			if(user.prem){
-				var prem = Math.round( (parseInt(user.prem) - +new Date/1000) / (60 * 60 * 24) );
+			if(user.bg){
+				var prem = Math.round( (parseInt(user.bg) - +new Date/1000) / (60 * 60 * 24) );
 				user.bg = prem;
 			}else{
 				user.bg = 0;

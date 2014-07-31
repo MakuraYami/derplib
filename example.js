@@ -1,7 +1,7 @@
 // DerpLib
 var DerpLib = require('./derplib');
 
-DerpLib.addAccount('user', 'pass');
+DerpLib.addAccount('USERNAME', 'PASSWORD');
 
 console.log('[DB] Loading...');
 var db = DerpLib.MM.plugin.load('database').setOrder(1).done(function(){
@@ -12,11 +12,15 @@ var db = DerpLib.MM.plugin.load('database').setOrder(1).done(function(){
 	permissions.addRole('user', {access: 1});
 	permissions.setDefaultRole('user');
 	
-	// After making it join once the bot will auto-join the rooms on startup and you can remove this.
-	new DerpLib.Room({room: 'exampleroom', account: 'user'});
+	// Join a room here - after it's joined use join and leave commands
+	if(!DerpLib.getRoom('exampleroom'))
+		new DerpLib.Room({room: 'exampleroom', account: 'USERNAME'});
 });
 
-DerpLib.events.on("request",function(req){
+DerpLib.events.on("request", function(req){
 	console.log('['+req.room.name+']['+req.user.name+'] '+req.message.text);
 });
 
+DerpLib.events.on('messageDeleted', function(message, room){
+	console.log('['+room.name+'][DELETED]['+message.name+']', message.text);
+});
