@@ -185,8 +185,8 @@ function execute(command, req){
 		return;
 	}
 	
-	if(!_.has(command.cache.users, req.user.name)) command.cache.users[req.user.name] = {lastused:0};
-	if(!_.has(command.cache.rooms, req.room.name)) command.cache.rooms[req.room.name] = {lastused:0};
+	if(!_.has(command.cache.users, req.user.name)) command.cache.users = {lastused:0};
+	if(!_.has(command.cache.rooms, req.room.name)) command.cache.rooms = {lastused:0};
 	
 	var now = new Date/1000;
 	
@@ -195,8 +195,6 @@ function execute(command, req){
 			var room_timeout = (command.cache.rooms[req.room.name].lastused + command.room_timeout - now);
 			console.log('['+req.room.name+']['+req.user.name+']['+command.key+'] DENIED, ROOM TIMEOUT: '+utils.secondsToString(room_timeout));
 			return;
-		}else{
-			command.cache.rooms[req.room.name] = {lastused:now}
 		}
 	}
 	
@@ -205,8 +203,6 @@ function execute(command, req){
 			var user_timeout = (command.cache.users[req.room.name].lastused + command.user_timeout - now);
 			console.log('['+req.room.name+']['+req.user.name+']['+command.key+'] DENIED, USER TIMEOUT: '+utils.secondsToString(user_timeout));
 			return;
-		}else{
-			command.cache.users[req.user.name] = {lastused:now}
 		}
 	}
 	
