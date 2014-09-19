@@ -290,22 +290,19 @@ Room.prototype._onAuth = function(){
 	});
 	
 	this.on('frame_participant', function(_frame) {
-		if(_frame.mode == 'leave'){
-			if(_.has(self.users, _frame.user.sess))
-				delete self.users[_frame.user.sess];
-		}
-		else if(_frame.mode == 'join'){
-			if(!_.has(self.users, _frame.user.sess))
-				 self.users[_frame.user.sess] = _frame.user;
-		}
-		else if(_frame.mode == 'change'){
-			//log in or out
-			self.users[_frame.user.sess] = _frame.user;
-			if(undefined === _frame.user.name){
-				eventModule.emit('event', 'userLogout', _frame.user);
-			}else{
-				eventModule.emit('event', 'userLogin', _frame.user);
+		if(_frame.mode){
+			if(['leave-anon', 'leave-temp', 'leave-user'].indexOf(_frame.mode) !== -1){
+				if(_.has(self.users, _frame.user.sess))
+					delete self.users[_frame.user.sess];
 			}
+			else if(['join-anon', 'join-temp', 'join-user'].indexOf(_frame.mode) !== -1){
+				if(!_.has(self.users, _frame.user.sess))
+					 self.users[_frame.user.sess] = _frame.user;
+			}
+			else if(['logout', 'temp', 'login'].indexOf(_frame.mode) !== -1){
+				self.users[_frame.user.sess] = _frame.user;
+			}
+			eventModule.emit('participant', self, _frame);
 		}
 	});
 	
@@ -373,8 +370,8 @@ Room.prototype._onAuth = function(){
 	
 	this.on('frame_mods', function(_frame) {
 		self.mods = _frame.mods;
-		var added = _.find(self.mods, function(x){ return self.mods.indexOf(x) > -1; });
-		var removed = _.find(self.mods, function(x){ return self.mods.indexOf(x) < 0; });
+		var added = _.find(Object.keys(self.mods), function(x){ return Object.keys(self.mods).indexOf(x) > -1; });
+		var removed = _.find(Object.keys(self.mods), function(x){ return Object.keys(self.mods).indexOf(x) < 0; });
 		
 		if(added){
 			self.emit('mod_added', added);
@@ -454,8 +451,7 @@ function stringConvertEnteties(string, all){
 	},'');
 }
 
-Room.prototype.message = function(body) {
-	
+Room.prototype.message = function(body, channel) {
 	if(this._writeLock || !body) return;
 	
 	var self = this;
@@ -468,13 +464,13 @@ Room.prototype.message = function(body) {
 		
 		output = output.replace(/(\n\r|\r\n|\n|\r|\0)/g, '<br/>');
 		_.each(output.match(/.{1,2950}/gm), function(msg){
-			self.write('bmsg', 'l33t', '<n'+self._settings.nameColor+'/>'+msg);
+			self.write('bm', 'l33t', utils.choose_channel(utils.find_channel(channel)[0]), '<n'+self._settings.nameColor+'/>'+'<p>'+msg);
 		});
 	}
 	else{
 		body = String(body).replace(/(\n\r|\r\n|\n|\r|\0)/g, '<br/>');
 		_.each(body.match(/.{1,2950}/gm), function(msg){
-			self.write('bmsg', 'l33t', '<n'+self._settings.nameColor+'/>' + self.font() + msg + self.fontEnd());
+			self.write('bm', 'l33t', utils.choose_channel(utils.find_channel(channel)[0]), '<n'+self._settings.nameColor+'/>' + self.font() + msg + self.fontEnd());
 		});
 	}
 };
@@ -519,7 +515,7 @@ Room.prototype.logout = function(){
 
 Room.prototype.checkModStatus = function(){
 	this._isAdmin = (this.admin == this._accountLC);
-	this._isModerator = (this.mods.indexOf(this._accountLC) != -1 || this._isAdmin);
+	this._isModerator = (Object.keys(this.mods).indexOf(this._accountLC) != -1 || this._isAdmin);
 }
 
 Room.prototype.addMod = function(name) {
@@ -600,10 +596,13 @@ Room.prototype.delLastUser = function(name, amount) {
 }
 
 Room.prototype.clearUser = function(name) {
+
+
 	if(this._isModerator && name){
 		_.each(this.users, function(user){
-			if(user.name == name.toLowerCase() && user.key)
-				this.write(['delallmsg', user.key]);
+			if(user.name == name.toLowerCase() && user.key && user.ip)
+				this.write(['delallmsg', user.key, user.ip, ['#', '_'].indexOf(user.name.charAt(0)) !== -1 ? '' : user.name]);
+
 		}.bind(this));
 	}
 }
@@ -612,7 +611,7 @@ Room.prototype.modClearAll = function() {
 	if(this._isModerator){
 		var self = this;
 		_.each(this.users, function(user){
-			if(user.key) self.write(['delallmsg', user.key]);
+			if(user.key && user.ip) self.write(['delallmsg', user.key, user.ip, ['#', '_'].indexOf(user.name.charAt(0)) !== -1 ? '' : user.name]);
 		});
 	}
 }

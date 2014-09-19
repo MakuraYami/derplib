@@ -426,3 +426,25 @@ exports.getAnonName = function(num, ts) {
 */
 
 
+exports.choose_channel = function(channel) {
+	return Math.floor(65536*Math.floor(Math.random()))+Math.floor(exports.number_random(0,255)+Math.floor(256*(channel !== 0 ? Math.pow(2,channel)/2 : 0)));
+}
+
+exports.find_channel = function(channel) {
+	var channels = {
+		0: {name: 'no color', numbers: [0,255]},
+		1: {name: 'Vivid red', numbers: [256,511]},
+		2: {name: 'Vivid orange', numbers: [512,767]},
+		3: {name: 'Moderate lime green', numbers: [1024,1279]},
+		4: {name: 'Bright blue', numbers: [2048,2303]},
+		5: {name: 'Strong blue', numbers: [4096,4351]},
+		6: {name: 'Dark moderate violet', numbers: [8192,8447]},
+		7: {name: 'Vivid pink', numbers: [16384,16639]},
+		8: {name: 'mods only', numbers: [32768,33023]}
+	}
+	for(var i = 0; i < Object.keys(channels).length; i++){
+		if(channels[i].numbers[0] <= channel && channels[i].numbers[1] >= channel || channels[i].name == channel){
+			return [i, channels[i].name];
+		}
+	}
+}
