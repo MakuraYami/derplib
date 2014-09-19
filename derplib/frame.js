@@ -42,7 +42,7 @@ var frameTypesRoom = {
 			myname: myname,
 			jointime: jointime,
 			myip: myip,
-			mods: mods.split(";")};
+			mods: _.reduce(mods.split(";"), function(mods, args){args = args.split(',');mods[args[0]] = args[1];return mods;},{})};
 	},
 	
 	inited: function() {
@@ -101,27 +101,27 @@ var frameTypesRoom = {
 	},
 	
 	mods: function(mods) {
-		return {type: "mods", mods: _.toArray(arguments)};
+		return {type: "mods", mods: _.reduce(_.toArray(arguments), function(mods, args){args = args.split(',');mods[args[0]] = args[1];return mods;},{})};
 	},
 	
-	i: function(time, name, alias, user_id, user_key, msgid, ip, prem, _noidea) {
+	i: function(time, name, alias, user_id, user_key, msgid, ip, channel, _noidea) {
 		return {
 			time: parseFloat(time),
 			type: "i",
 			user: makeUser(name, alias, user_id, user_key, ip),
 			id: msgid,
-			premium: makePremium(parseInt(prem, 10)),
+			channel: parseInt(channel, 10),
 			body: _.toArray(arguments).slice(9).join(":")};
 	},
 	
-	b: function(time, name, alias, user_id, user_key, number, ip, prem) {
+	b: function(time, name, alias, user_id, user_key, number, ip, channel) {
 		return {
 			time: parseFloat(time),
 			type: "b",
 			user: makeUser(name, alias, user_id, user_key, ip),
 			number: number,
 			id: false,
-			premium: makePremium(parseInt(prem, 10)),
+			channel: parseInt(channel, 10),
 			body: _.toArray(arguments).slice(9).join(":")};
 	},
 	
@@ -231,7 +231,7 @@ var frameTypesRoom = {
 		if(user.alias) user.alias = '#'+user.alias;
 		return {
 			type: "participant",
-			mode: ( mode == "0" ? "leave" : mode == "1" ? "join" : mode == "2" ? "change" : undefined ),
+			mode: ( mode == "0" && !name && !alias ? "leave-anon" : mode == "0" && !name && alias ? "leave-temp" : mode == "0" && name && !alias ? "leave-user" : mode == "1" && !name && !alias ? "join-anon" : mode == "1" && !name && alias ? "join-temp" : mode == "1" && name && !alias ? "join-user" : mode == "2" && !name && !alias ? "logout" : mode == "2" && !name && alias ? "temp" : mode == "2" && name && !alias ? "login" : undefined ),
 			user: user};
 	},
 	
