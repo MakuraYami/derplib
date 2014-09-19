@@ -29,12 +29,12 @@ Request.prototype.parseMessage = function(frame) {
 		user_id: 	frame.user.id,
 		user_key: 	frame.user.key, //mod only
 		user_ip: 	frame.user.ip, //mod only
+		channel:	frame.channel,
 		time: (+new Date),
 		deleted: false,
 	};
 	// Set name to lowercase
 	if(frame.user.name) frame.user.name = frame.user.name.toLowerCase();
-	
 	// Parse message data
 	message.text = utils.html_decode(utils.html_remove(message.body));
 	message.nameColor = /<n([0-9a-f]*)\/>/gi.exec(message.body);
@@ -48,7 +48,7 @@ Request.prototype.parseMessage = function(frame) {
 	// Set user details
 	if(frame.user.name && frame.user.alias === undefined) {
 		frame.user.type = 'user';
-		if(this.room.mods.indexOf(frame.user.name) != -1) {
+		if(Object.keys(this.room.mods).indexOf(frame.user.name) != -1) {
 			frame.user.level = 3;
 		} else if(this.room.admin == frame.user.name) {
 			frame.user.level = 4;
@@ -64,7 +64,6 @@ Request.prototype.parseMessage = function(frame) {
 		frame.user.level = 0;
 		frame.user.name = '_anon' + utils.getAnonId(message.nameColor, message.user_id);
 	}
-	
 	//Extra
 	var self = this;
 	message.links = [];
@@ -97,10 +96,10 @@ Request.prototype.parseMessage = function(frame) {
 
 Request.prototype.parsePMMessage = function(frame) {
 	var message = {
-		//room:		this.room.name,
+		room:		this.room.name,
 		stime:		frame.time, // Server time
-		//name: 		frame.user.name.toLowerCase(),
-		//alias: 		frame.user.alias,
+		name: 		frame.user.name.toLowerCase(),
+		alias: 		frame.user.alias,
 		number: 	undefined,
 		premium: 	frame.premium,
 		body: 		frame.body,
@@ -109,20 +108,60 @@ Request.prototype.parsePMMessage = function(frame) {
 		time: +new Date,
 		deleted: false,
 	};
+	// Set name to lowercase
+	if(frame.user.name) frame.user.name = frame.user.name.toLowerCase();
+	// What kind of user is it
+	if(frame.user.name && frame.user.alias) frame.user.type = 'user';
 	
-	//message.type = 'user'; // parse this properly
-	
+	//CONTINUE
 	message.text = utils.html_decode(utils.html_remove(message.body));
+	message.nameColor = /<n([0-9a-f]*)\/>/gi.exec(message.body);
+	message.nameColor = message.nameColor ? message.nameColor[1] : false;
+	var fontMatches = /<g x([0-9]{2})s([0-9a-f]{3,6})?="([0-9]*?)">/gi.exec(message.body);
+	if(fontMatches){
+		message.fontSize = fontMatches[1];
+		message.fontColor = fontMatches[2];
+		message.fontFace = fontMatches[3];
+	}
+	
+	//Extra
+	var self = this;
+	message.links = [];
+	var links = message.text.match(/(\b(http:\/\/|www.)[^\s]*)/gi);
+	_.each(links, function(link){
+		link = url.parse(link);
+		if(!link.host) return;
+		link.isImage = /(.gif|.jpeg|.jpg|.png)$/i.test(link.pathname);
+		link.isYoutube = (link.host.indexOf('youtube.com') != -1 && link.search);
+		if(link.isYoutube){
+			var youtubeId = link.search.split('v=')[1];
+			if(youtubeId){
+				var ampersandPosition = youtubeId.indexOf('&');
+				if(ampersandPosition != -1){
+				  link.youtubeId = youtubeId.substring(0, ampersandPosition);
+				}else{
+					link.youtubeId = youtubeId;
+				}
+			}else{
+				link.isYoutube = false;
+			}
+		}
+		message.links.push(link);
+	});
+	
+	message.name = frame.user.name.toLowerCase;
+	//message.type = 'user'; // parse this properly
 
 	this.message = message;
 	this.user = frame.user;
 }
 
-Request.prototype.write = function(body){
+
+Request.prototype.write = function(body, channel){
 	if(this.room.ispm)
 		this.room.message(this.user.name, body);
 	else
-		this.room.message(body);
+		this.room.message(body, !channel ? this.message.channel : channel);
 }
 
 // Database format
